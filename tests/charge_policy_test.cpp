@@ -94,5 +94,9 @@ int main() {
     assert(cl::stopConfirmed(true, 5, true));
     assert(!cl::stopConfirmed(false, 0, true));
     assert(cl::stopConfirmed(false, 0, false));
+    assert(cl::capacityRising(50, 52));
+    assert(!cl::capacityRising(50, 51));
+    assert(!cl::capacityRising(-1, 52));
+    assert(!cl::stopConfirmed(true, 0, false, true));
     std::cout << "Charging policy: threshold matrix, thermal recovery, model defaults and verification passed\n";
 }
