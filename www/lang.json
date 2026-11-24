@@ -129,13 +129,11 @@
         "stat_hour": "Hourly Data",
         "stat_day": "Daily Data",
         "stat_month": "Monthly Data",
-        "restore_charging": "Restore normal charging",
-        "manual_pauses_automatic": "Manual charging and input-power controls pause automatic limiting. Enable it again when you are ready.",
         "control_action_failed": "The change could not be applied. Check the connection and charging method.",
         "control_service_unavailable": "Charging service unavailable",
         "control_service_help": "The app cannot confirm that charge limiting is running. Reopen the app to reconnect.",
         "control_state_observing": "Monitoring battery",
-        "control_state_paused": "Battery current indicates charging is paused",
+        "control_state_paused": "Charging paused",
         "control_state_pause_reported": "Device reports charging paused",
         "control_state_stopping": "Waiting for charging to stop",
         "control_state_stop_unconfirmed": "Charge limit is not being enforced",
@@ -145,12 +143,12 @@
         "control_state_unplugged": "No external power detected",
         "control_state_invalid_reading": "Battery reading unavailable",
         "control_reason_observe": "Monitoring charge level and temperature.",
-        "control_reason_disabled": "Automatic limiting is off. Normal charging has been requested.",
-        "control_reason_manual": "Automatic limiting is paused for your manual control.",
+        "control_reason_disabled": "Automatic limits are off. Normal charging has been requested.",
+        "control_reason_manual": "Automatic limits are paused after a manual change. Turn Enable on to resume.",
         "control_reason_restored": "Automatic limiting is off. External power and normal charging have been requested.",
         "control_reason_unplugged": "Waiting for an external power source.",
         "control_reason_invalid_reading": "Waiting for valid battery data before making automatic changes.",
-        "control_reason_capacity_limit": "The configured upper charge limit has been reached.",
+        "control_reason_capacity_limit": "Your {limit}% charge limit has been reached.",
         "control_reason_temperature_limit": "The configured temperature limit has been reached.",
         "control_reason_temperature_wait": "Waiting for the battery to cool to the resume temperature.",
         "control_reason_low_capacity": "The battery is at or below the resume charge level.",
@@ -158,7 +156,9 @@
         "control_reason_plugged": "External power was connected.",
         "control_reason_edge_wait": "Waiting for the lower charge threshold in edge-trigger mode.",
         "legacy_charge_help": "This older iPhone is using predictive charging inhibition. If charging will not stop, try the legacy charging method.",
-        "legacy_charge_action": "Try legacy charging method"
+        "legacy_charge_action": "Try legacy charging method",
+        "enable_help": "Turn off to allow normal charging. Turn on to apply your limits.",
+        "control_state_disabled": "Charge limiting off"
     },
     "zh_CN": {
         "label": "简体中文",
@@ -289,7 +289,13 @@
         "stat_min5": "5分钟数据",
         "stat_hour": "小时数据",
         "stat_day": "天数据",
-        "stat_month": "月数据"
+        "stat_month": "月数据",
+        "enable_help": "关闭后允许正常充电；开启后应用设定的充电限制。",
+        "control_state_disabled": "自动充电限制已关闭",
+        "control_state_paused": "充电已暂停",
+        "control_reason_capacity_limit": "已达到设定的 {limit}% 电量上限。",
+        "control_reason_disabled": "自动限制已关闭，已请求恢复正常充电。",
+        "control_reason_manual": "手动操作后，自动限制已暂停。重新打开“启用”即可恢复。"
     },
     "zh_TW": {
         "label": "繁體中文",
@@ -420,7 +426,13 @@
         "stat_min5": "每5分鐘資料",
         "stat_hour": "每小時資料",
         "stat_day": "每日資料",
-        "stat_month": "每月資料"
+        "stat_month": "每月資料",
+        "enable_help": "關閉後允許正常充電；開啟後套用設定的充電限制。",
+        "control_state_disabled": "自動充電限制已關閉",
+        "control_state_paused": "充電已暫停",
+        "control_reason_capacity_limit": "已達到設定的 {limit}% 電量上限。",
+        "control_reason_disabled": "自動限制已關閉，已要求恢復正常充電。",
+        "control_reason_manual": "手動操作後，自動限制已暫停。重新開啟「啟用」即可恢復。"
     },
     "ar": {
         "label": "العربية",
