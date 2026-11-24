@@ -77,10 +77,12 @@ test('manual controls refresh automatic enable state after the response', () => 
 test('battery current wins over writable charging flag; absent adapter is supported', () => {
     const {app} = loadApp();
     app.get_bat_info_cb({status: 0, data: {IsCharging: true, InstantAmperage: 0}});
+    app.control = {target: 0, state: 'paused'};
     assert.equal(app.is_charge(), false);
     assert.equal(app.is_inflow(), false);
     assert.equal(app.get_adaptor_desc(), '—');
     app.bat_info.InstantAmperage = 500;
+    app.control.state = 'stop_unconfirmed';
     assert.equal(app.is_charge(), true);
     assert.equal(app.get_health({}), '—');
 });
