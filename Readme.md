@@ -15,15 +15,32 @@ developed by [lich4](https://github.com/lich4/ChargeLimiter).
 
 ## Development status
 
-The **1.7.1 reliability changes have been merged into the source**, but there is
-no new installable TrollStore package yet. Sections marked **1.7.1 development**
-describe these source changes; the original upstream 1.7 packages do not include
-them. See [PR #1](https://github.com/mkitchingh/ChargeLimiter/pull/1) and the
-[validation and device-test checklist](RELIABILITY.md).
+The **1.7.1 reliability changes have been merged**, and an **arm64 TrollStore test
+package** is available from the [package build workflow](https://github.com/mkitchingh/ChargeLimiter/actions/workflows/build-trollstore.yml).
+Sections marked **1.7.1 development** describe these changes; original upstream
+1.7 packages do not include them. See [PR #1](https://github.com/mkitchingh/ChargeLimiter/pull/1)
+and the [validation and device-test checklist](RELIABILITY.md).
 
-The policy, interface, and history tests and native arm64/arm64e syntax checks
-have passed. Those checks do not produce an installer or establish device
-compatibility. Building the package and testing it on devices are still required.
+The policy, interface, history, native syntax, full compilation, signing, and
+package-structure checks have passed. The test package has **not yet been validated
+on a device**; building successfully does not establish charging compatibility.
+
+### Download a test package
+
+1. Open the [TrollStore test package workflow](https://github.com/mkitchingh/ChargeLimiter/actions/workflows/build-trollstore.yml)
+   and choose a successful run.
+2. Under **Artifacts**, download **ChargeLimiter-1.7.1-TrollStore-arm64**. GitHub
+   downloads a ZIP containing the `.tipa`, a build report, and checksums.
+3. Extract `ChargeLimiter_1.7.1_test_arm64.tipa` and install it through TrollStore.
+   Record your existing settings before replacing an older installation.
+4. Test charge limiting, manual input restoration, and **Restore normal charging**
+   before relying on the app for unattended use.
+
+The first validated test package is 2,967,336 bytes (about 3 MB). Both executables
+are signed iOS arm64 binaries targeting iOS 12.0 or later; no Intel binaries, SDKs,
+or object files are bundled. See `build-report.json` in the artifact for the exact
+size, architectures, and SHA-256 of each build. These packages require a compatible
+TrollStore installation and are not ordinary sideloadable IPAs.
 
 This fork focuses on predictable charging behavior and recovery:
 
@@ -244,10 +261,13 @@ bash tests/run.sh
 
 The original Xcode project depends on external MonkeyDev, Theos headers, and a
 GCDWebServers framework. The old Theos Makefiles refer to the removed `main.mm`
-and are not a supported build path for this branch. The CI workflow checks policy,
-interface, and history behavior, and includes native syntax checks; it does not
-produce an installable package. See [RELIABILITY.md](RELIABILITY.md) for the full
-validation scope and device acceptance checklist.
+and are not a supported build path for this branch. The reliability workflow checks policy,
+interface, and history behavior, and includes native syntax checks. The separate
+TrollStore package workflow compiles the app and daemon from source, signs both
+with the existing entitlements, compiles interface resources, and validates the
+resulting `.tipa`. It uses pinned Theos headers, GCDWebServer source, and a pinned
+signing tool; the standalone script does not require MonkeyDev. See
+[RELIABILITY.md](RELIABILITY.md) for validation scope and device acceptance checks.
 
 Additional upstream development tools:
 
@@ -301,9 +321,18 @@ ChargeLimiter 用于控制 iPhone 或 iPad 的充电时机，支持电量上限�
 
 ### 开发状态
 
-**1.7.1 可靠性改进已合并到源代码中，但尚未提供新的 TrollStore 安装包。** 下文标注为“1.7.1 开发版”的内容描述这些源代码改进；原项目的 1.7 安装包不包含这些改动。详情见 [PR #1](https://github.com/mkitchingh/ChargeLimiter/pull/1) 和[验证范围及真机测试清单](RELIABILITY.md)。
+**1.7.1 可靠性改进已合并，并已提供 arm64 TrollStore 测试安装包。** 请从[安装包构建工作流](https://github.com/mkitchingh/ChargeLimiter/actions/workflows/build-trollstore.yml)获取。下文标注为“1.7.1 开发版”的内容描述这些改动；原项目的 1.7 安装包不包含这些改动。详情见 [PR #1](https://github.com/mkitchingh/ChargeLimiter/pull/1) 和[验证范围及真机测试清单](RELIABILITY.md)。
 
-充电策略、界面、历史记录测试及原生 arm64/arm64e 语法检查已通过。这些检查不会生成安装包，也不能证明所有设备均兼容。后续仍需构建安装包并进行真机测试。
+充电策略、界面、历史记录测试、原生语法检查、完整编译、签名及安装包结构检查均已通过。**测试安装包尚未经过真机验证**；构建成功不能证明充电控制在所有设备上均兼容。
+
+#### 下载测试安装包
+
+1. 打开 [TrollStore 测试安装包工作流](https://github.com/mkitchingh/ChargeLimiter/actions/workflows/build-trollstore.yml)，选择一次成功运行。
+2. 在 **Artifacts** 下下载 **ChargeLimiter-1.7.1-TrollStore-arm64**。GitHub 会下载一个 ZIP，其中包含 `.tipa`、构建报告和校验值。
+3. 解压出 `ChargeLimiter_1.7.1_test_arm64.tipa`，通过 TrollStore 安装。替换旧版本前，请记录现有设置。
+4. 在长期无人值守使用前，测试电量限制、手动恢复输入电源及“恢复正常充电”功能。
+
+首个通过验证的测试安装包大小为 2,967,336 字节，约 3 MB。两个可执行文件均为已签名的 iOS arm64 程序，最低部署版本为 iOS 12.0；安装包不包含 Intel 程序、SDK 或目标文件。每次构建的实际大小、架构及 SHA-256 见附件中的 `build-report.json`。这些安装包仍需兼容的 TrollStore 环境，不能作为普通 IPA 侧载使用。
 
 本分支主要改善充电行为的可预测性和恢复能力：
 
@@ -466,7 +495,7 @@ git switch main
 bash tests/run.sh
 ```
 
-原 Xcode 工程依赖外部安装的 MonkeyDev、Theos 头文件和 GCDWebServers 框架。旧 Theos Makefile 引用了已移除的 `main.mm`，本分支不将其作为受支持的构建方式。CI 工作流验证充电策略、界面和历史记录，并包含原生语法检查，但不会生成安装包。完整验证范围和真机验收清单见 [RELIABILITY.md](RELIABILITY.md)。
+原 Xcode 工程依赖外部安装的 MonkeyDev、Theos 头文件和 GCDWebServers 框架。旧 Theos Makefile 引用了已移除的 `main.mm`，本分支不将其作为受支持的构建方式。可靠性检查工作流验证充电策略、界面和历史记录，并包含原生语法检查。独立的 TrollStore 安装包工作流会从源代码编译应用与后台服务、使用现有权限签名、编译界面资源并验证生成的 `.tipa`。工作流固定了 Theos 头文件、GCDWebServer 源码和签名工具版本；独立构建脚本不需要 MonkeyDev。完整验证范围和真机验收清单见 [RELIABILITY.md](RELIABILITY.md)。
 
 原项目的其他开发工具：
 
