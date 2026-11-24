@@ -1,3 +1,13 @@
+Interface simplification:
+* Remove the redundant Restore normal charging button. Enable off already performs the same recovery.
+* Explain Enable on/off behavior and show the actual charge limit in the status panel.
+* Update English, Simplified Chinese and Traditional Chinese status text, plus English/Chinese help.
+
+界面简化：
+* 移除重复的“恢复正常充电”按钮；关闭“启用”已执行相同的恢复操作。
+* 明确“启用”开关的作用，并在状态面板中显示实际电量上限。
+* 同步更新英文、简体中文和繁体中文状态文字，以及英文和中文帮助文档。
+
 Unreleased reliability update:
 * Add independent daemon watchdog, command-result reporting and charging status panel.
 * Add Restore normal charging; manual controls pause automatic limiting.
