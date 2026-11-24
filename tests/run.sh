@@ -7,4 +7,5 @@ trap 'rm -rf "$test_dir"' EXIT
 "$test_dir/policy"
 node --check www/js/app.js
 node --test tests/app.test.cjs
+python3 tests/storage_test.py
 python3 -m json.tool www/lang.json > /dev/null
