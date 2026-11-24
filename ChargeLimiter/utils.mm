@@ -53,7 +53,7 @@ int32_t get_mem_limit(int pid) {
     struct memorystatus_priority_entry* buf = (struct memorystatus_priority_entry*)malloc(rc);
     rc = memorystatus_control(MEMORYSTATUS_CMD_GET_PRIORITY_LIST, 0, 0, buf, rc);
     int32_t limit = -1;
-    for (int i = 0 ; i < rc; i++) {
+    for (int i = 0 ; rc > 0 && i < rc / (int)sizeof(*buf); i++) {
         if (buf[i].pid == pid) {
             limit = buf[i].limit;
             break;
@@ -89,7 +89,7 @@ NSString* getNSStringFromFile(int fd) {
     if (!fd_is_valid(fd)) {
         return @"";
     }
-    while ((num_read = read(fd, &c, sizeof(c)))) {
+    while ((num_read = read(fd, &c, sizeof(c))) > 0) {
         [ms appendString:[NSString stringWithFormat:@"%c", c]];
         //if(c == '\n') {
         //    break;
@@ -122,7 +122,18 @@ int spawn(NSArray* args, NSString** stdOut, NSString** stdErr, pid_t* pidPtr, in
     if (param != nil) {
         if (param[@"cwd"] != nil) {
             NSString* path = param[@"cwd"];
-            posix_spawn_file_actions_addchdir_np(&action, path.UTF8String);
+            // The symbol exists on supported systems but public iOS SDKs mark
+            // the declaration unavailable. Resolve it like other private APIs.
+            typedef int (*addchdir_t)(posix_spawn_file_actions_t*, const char*);
+            addchdir_t addchdir = (addchdir_t)dlsym(RTLD_DEFAULT, "posix_spawn_file_actions_addchdir_np");
+            int result = addchdir ? addchdir(&action, path.UTF8String) : ENOTSUP;
+            if (result != 0) {
+                posix_spawnattr_destroy(&attr);
+                posix_spawn_file_actions_destroy(&action);
+                for (NSUInteger i = 0; i < argCount; i++) free(argsC[i]);
+                free(argsC);
+                return result;
+            }
         }
         if (param[@"close"] != nil) {
             NSArray* closes_fds = param[@"close"];
@@ -297,7 +308,7 @@ NSString* getLocalIP() { // 获取wifi ipv4
     if (0 == getifaddrs(&interfaces)) {
         temp_addr = interfaces;
         while(temp_addr != NULL) {
-            if(temp_addr->ifa_addr->sa_family == AF_INET) {
+            if(temp_addr->ifa_addr && temp_addr->ifa_addr->sa_family == AF_INET) {
                 if(!strcmp(temp_addr->ifa_name, "en0")) {
                     char* ip = inet_ntoa(((struct sockaddr_in *)temp_addr->ifa_addr)->sin_addr);
                     result = @(ip);

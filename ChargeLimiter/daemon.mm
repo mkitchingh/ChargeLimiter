@@ -4,6 +4,7 @@
 #import <UserNotifications/UserNotifications.h>
 
 #include "utils.h"
+#include "charge_policy.h"
 
 #define kHIDPage_PowerDevice                    0x84
 #define kHIDUsage_PD_PeripheralDevice           0x06
@@ -92,6 +93,16 @@ static int g_serv_boot = 0;
 static IONotificationPortRef gNotifyPort = NULL;
 static io_object_t iopmpsNoti = IO_OBJECT_NULL;
 static UPSDataSlim* gUPSPS = nil;
+static NSDictionary* control_bat_info = nil;
+static cl::State policy_state;
+static int charge_target = -1;
+static int target_capacity = -1;
+static int control_error = 0;
+static double target_since = 0;
+static double last_command = -1;
+static BOOL control_notified = NO;
+static NSString* control_reason = @"observe";
+static BOOL g_evaluating = NO;
 
 NSDictionary* handleReq(NSDictionary* nsreq);
 
@@ -270,74 +281,51 @@ static int setBatteryStatus(BOOL flag) {
     return ret;
 }
 
-static void resetBatteryStatus() {
+static int resetBatteryStatus() {
     io_service_t serv = getIOPMPSServ();
     if (serv == IO_OBJECT_NULL) {
-        return;
+        return -1;
     }
     NSMutableDictionary* props = [NSMutableDictionary new];
     props[@"IsCharging"] = @YES;
     props[@"PredictiveChargingInhibit"] = @NO;
     props[@"ExternalConnected"] = @YES;
-    IORegistryEntrySetCFProperties(serv, (__bridge CFTypeRef)props);
+    return IORegistryEntrySetCFProperties(serv, (__bridge CFTypeRef)props) == 0 ? 0 : -2;
 }
 
 static void performAcccharge(BOOL flag) {
-    static NSMutableDictionary* cache_status = nil;
-    NSNumber* acc_charge = getlocalKV(@"acc_charge");
-    NSNumber* acc_charge_airmode = getlocalKV(@"acc_charge_airmode");
-    NSNumber* acc_charge_wifi = getlocalKV(@"acc_charge_wifi");
-    NSNumber* acc_charge_blue = getlocalKV(@"acc_charge_blue");
-    NSNumber* acc_charge_bright = getlocalKV(@"acc_charge_bright");
-    NSNumber* acc_charge_lpm = getlocalKV(@"acc_charge_lpm");
-    if (acc_charge.boolValue) {
-        if (flag) { // 修改状态
-            cache_status = [NSMutableDictionary new];
-            if (acc_charge_airmode.boolValue) {
-                setAirEnable(YES);
-            }
-            if (acc_charge_wifi.boolValue) {
-                setWiFiEnable(NO); // todo 支持16
-            }
-            if (acc_charge_blue.boolValue) {
-                setBlueEnable(NO);
-            }
-            if (acc_charge_bright.boolValue) {
-                float val = getBrightness();
-                cache_status[@"acc_charge_bright"] = @(val);
-                if (isAutoBrightEnable()) {
-                    setAutoBrightEnable(NO);
-                    cache_status[@"acc_charge_bright_auto"] = @YES;
-                }
-                setBrightness(0.0);
-            }
-            if (acc_charge_lpm.boolValue) {
-                setLPMEnable(YES);
-            }
-        } else if (cache_status != nil) { // 还原状态
-            if (acc_charge_airmode.boolValue) {
-                setAirEnable(NO);
-            }
-            if (acc_charge_wifi.boolValue) {
-                setWiFiEnable(YES);
-            }
-            if (acc_charge_blue.boolValue) {
-                setBlueEnable(YES);
-            }
-            if (acc_charge_bright.boolValue) {
-                if (cache_status[@"acc_charge_bright"] != nil) {
-                    NSNumber* acc_charge_bright = cache_status[@"acc_charge_bright"];
-                    setBrightness(acc_charge_bright.floatValue);
-                }
-                if (cache_status[@"acc_charge_bright_auto"] != nil) {
-                    setAutoBrightEnable(YES);
-                }
-            }
-            if (acc_charge_lpm.boolValue) {
-                setLPMEnable(NO);
-            }
-            cache_status = nil;
-        }
+    // Capture once, restore exactly what this session changed, even if the user
+    // disabled Speedup Charging (or one of its options) in the meantime.
+    static NSMutableDictionary* saved = nil;
+    if (!flag) {
+        if (saved == nil) return;
+        if (saved[@"air"]) setAirEnable([saved[@"air"] boolValue]);
+        if (saved[@"wifi"]) setWiFiEnable([saved[@"wifi"] boolValue]);
+        if (saved[@"blue"]) setBlueEnable([saved[@"blue"] boolValue]);
+        if (saved[@"lpm"]) setLPMEnable([saved[@"lpm"] boolValue]);
+        if (saved[@"brightness"]) setBrightness([saved[@"brightness"] floatValue]);
+        if (saved[@"auto_brightness"]) setAutoBrightEnable([saved[@"auto_brightness"] boolValue]);
+        saved = nil;
+        return;
+    }
+    if (saved != nil || ![getlocalKV(@"acc_charge") boolValue]) return;
+    saved = [NSMutableDictionary new];
+    if ([getlocalKV(@"acc_charge_airmode") boolValue]) saved[@"air"] = @(isAirEnable());
+    if ([getlocalKV(@"acc_charge_wifi") boolValue]) saved[@"wifi"] = @(isWiFiEnable());
+    if ([getlocalKV(@"acc_charge_blue") boolValue]) saved[@"blue"] = @(isBlueEnable());
+    if ([getlocalKV(@"acc_charge_lpm") boolValue]) saved[@"lpm"] = @(isLPMEnable());
+    if ([getlocalKV(@"acc_charge_bright") boolValue]) {
+        saved[@"brightness"] = @(getBrightness());
+        saved[@"auto_brightness"] = @(isAutoBrightEnable());
+    }
+    // Snapshot all values before changing airplane mode, which affects radios.
+    if (saved[@"air"]) setAirEnable(YES);
+    if (saved[@"wifi"]) setWiFiEnable(NO);
+    if (saved[@"blue"]) setBlueEnable(NO);
+    if (saved[@"lpm"]) setLPMEnable(YES);
+    if (saved[@"brightness"]) {
+        setAutoBrightEnable(NO);
+        setBrightness(0.0);
     }
 }
 
@@ -377,13 +365,17 @@ static void updateDBData(const char* tbl, int tid, NSDictionary* info) {
             return;
         }
         NSString* jstr = [[NSString alloc] initWithData:jdata encoding:NSUTF8StringEncoding];
-        char sql[256];
-        sprintf(sql, "insert or ignore into %s values(:1, :2)", tbl);
+        char* sql = sqlite3_mprintf("insert or ignore into \"%w\" values(:1, :2)", tbl);
         sqlite3_stmt* stmt = NULL;
-        sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        int prepared = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        sqlite3_free(sql);
+        if (prepared != SQLITE_OK) {
+            NSFileLog(@"history insert prepare failed: %s", sqlite3_errmsg(db));
+            return;
+        }
         sqlite3_bind_int(stmt, 1, tid);
         sqlite3_bind_text(stmt, 2, jstr.UTF8String, -1, SQLITE_STATIC);
-        sqlite3_step(stmt);
+        if (sqlite3_step(stmt) != SQLITE_DONE) NSFileLog(@"history insert failed: %s", sqlite3_errmsg(db));
         sqlite3_finalize(stmt);
     }
 }
@@ -393,6 +385,7 @@ static void initDB(NSString* batId) {
         if (!db) {
             sqlite3* cdb = NULL;
             if (sqlite3_open(DB_PATH, &cdb) != SQLITE_OK) {
+                if (cdb) sqlite3_close(cdb);
                 return;
             }
             db = cdb;
@@ -403,9 +396,11 @@ static void initDB(NSString* batId) {
                 if (batId != nil) {
                     tblName = [NSString stringWithFormat:@"%@.%@", batId, rawTbl];
                 }
-                NSString* sql = [NSString stringWithFormat:@"create table if not exists %@(id integer primary key, data text)", tblName];
-                char* err;
-                sqlite3_exec(db, sql.UTF8String, NULL, NULL, &err);
+                char* sql = sqlite3_mprintf("create table if not exists \"%w\"(id integer primary key, data text)", tblName.UTF8String);
+                char* err = NULL;
+                if (sqlite3_exec(db, sql, NULL, NULL, &err) != SQLITE_OK) NSFileLog(@"history create failed: %s", err ?: "unknown error");
+                sqlite3_free(err);
+                sqlite3_free(sql);
             }
         }
     }
@@ -423,10 +418,12 @@ static NSArray* getDBData(const char* tbl, int n, int last_id) {
             return @[];
         }
         NSMutableArray* result = [NSMutableArray array];
-        char sql[256];
-        sprintf(sql, "select data from %s where id > %d order by id desc limit %d", tbl, last_id, n);
+        if (n < 1 || n > 10000) return @[];
+        char* sql = sqlite3_mprintf("select data from \"%w\" where id > %d order by id desc limit %d", tbl, last_id, n);
         sqlite3_stmt* stmt = NULL;
-        sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        int prepared = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        sqlite3_free(sql);
+        if (prepared != SQLITE_OK) return @[];
         while (sqlite3_step(stmt) == SQLITE_ROW) {
             const char* jstr = (const char*)sqlite3_column_text(stmt, 0);
             NSData* jdata = [NSData dataWithBytes:(void*)jstr length:strlen(jstr)];
@@ -507,144 +504,158 @@ static float getTempAsC(NSString* key) {
     return 0;
 }
 
+static NSString* reasonName(cl::Reason reason) {
+    switch (reason) {
+        case cl::Unplugged: return @"unplugged";
+        case cl::InvalidReading: return @"invalid_reading";
+        case cl::CapacityLimit: return @"capacity_limit";
+        case cl::TemperatureLimit: return @"temperature_limit";
+        case cl::TemperatureWait: return @"temperature_wait";
+        case cl::LowCapacity: return @"low_capacity";
+        case cl::Cooled: return @"cooled";
+        case cl::Plugged: return @"plugged";
+        case cl::EdgeWait: return @"edge_wait";
+        default: return @"observe";
+    }
+}
+
+static void clearControl(NSString* reason) {
+    charge_target = -1;
+    target_capacity = -1;
+    control_error = 0;
+    last_command = -1;
+    control_reason = reason;
+    control_notified = NO;
+    policy_state = cl::State();
+}
+
+static void pauseAutomaticControl() {
+    g_enable = NO;
+    setlocalKV(@"enable", @NO);
+    clearControl(@"manual");
+    performAcccharge(NO);
+}
+
+static NSDictionary* controlInfo() {
+    NSString* state = @"observing";
+    NSNumber* current = bat_info[@"InstantAmperage"];
+    NSNumber* capacity = bat_info[@"CurrentCapacity"];
+    BOOL rising = capacity != nil && cl::capacityRising(target_capacity, capacity.intValue);
+    BOOL stopped = (current != nil || bat_info[@"IsCharging"] != nil) &&
+        cl::stopConfirmed(current != nil, current.longValue, [bat_info[@"IsCharging"] boolValue], rising);
+    if (control_error != 0) state = @"command_failed";
+    else if (charge_target == 0) {
+        if (stopped) state = current != nil ? @"paused" : @"pause_reported";
+        else state = NSProcessInfo.processInfo.systemUptime - target_since >= 120 ? @"stop_unconfirmed" : @"stopping";
+    } else if (charge_target == 1) {
+        state = current != nil && current.longValue > 10 ? @"charging" : @"charging_allowed";
+    }
+    if ([control_reason isEqualToString:@"invalid_reading"]) state = @"invalid_reading";
+    if ([control_reason isEqualToString:@"unplugged"]) state = @"unplugged";
+    return @{@"state": state, @"reason": control_reason, @"target": @(charge_target),
+             @"error": @(control_error), @"automatic": @(g_enable)};
+}
+
+static void requestAutomaticCharge(int target, NSString* reason) {
+    double now = NSProcessInfo.processInfo.systemUptime;
+    BOOL changed = charge_target != target;
+    control_reason = reason;
+    if (changed) {
+        charge_target = target;
+        target_capacity = bat_info[@"CurrentCapacity"] ? [bat_info[@"CurrentCapacity"] intValue] : -1;
+        target_since = now;
+        last_command = -1;
+        control_notified = NO;
+    }
+    // Some drivers take up to 120 seconds. Rewriting during that window
+    // can restart the driver's delay. Only rejected commands retry sooner.
+    if (!cl::commandDue(now, last_command, control_error)) return;
+    NSNumber* current = bat_info[@"InstantAmperage"];
+    if (!changed && control_error == 0) {
+        BOOL inflowMatches = target == 0 && [getlocalKV(@"adv_disable_inflow") boolValue]
+            ? ![bat_info[@"ExternalConnected"] boolValue] : YES;
+        BOOL rising = bat_info[@"CurrentCapacity"] && cl::capacityRising(target_capacity, [bat_info[@"CurrentCapacity"] intValue]);
+        if (target == 0 && inflowMatches && (current != nil || bat_info[@"IsCharging"] != nil) &&
+            cl::stopConfirmed(current != nil, current.longValue, [bat_info[@"IsCharging"] boolValue], rising)) return;
+        if (target == 1 && [bat_info[@"ExternalConnected"] boolValue] &&
+            ([bat_info[@"IsCharging"] boolValue] || current.longValue > 10)) return;
+    }
+    last_command = now;
+    BOOL disableInflow = [getlocalKV(@"adv_disable_inflow") boolValue];
+    int inflowResult = 0;
+    if (target == 1 && ![bat_info[@"ExternalConnected"] boolValue]) inflowResult = setInflowStatus(YES);
+    int chargeResult = setBatteryStatus(target == 1);
+    if (target == 0 && disableInflow && [bat_info[@"ExternalConnected"] boolValue]) inflowResult = setInflowStatus(NO);
+    control_error = chargeResult != 0 ? chargeResult : inflowResult;
+    if (changed || control_error != 0) {
+        NSFileLog(@"control target=%d reason=%@ result=%d", target, reason, control_error);
+    }
+    if (target == 0) performAcccharge(NO);
+    else if (control_error == 0) performAcccharge(YES);
+}
+
 static void onBatteryEvent(io_service_t serv) {
     @autoreleasepool {
-        NSDictionary* old_bat_info = bat_info;
-        if (0 != getBatInfoWithServ(serv, &bat_info)) {
+        if (g_evaluating) return;
+        g_evaluating = YES;
+        // IOKit events and the watchdog use a private snapshot: UI reads must
+        // not consume plug/unplug transitions before the controller sees them.
+        NSDictionary* old = control_bat_info;
+        if (getBatInfoWithServ(serv, &bat_info) != 0) {
+            control_reason = @"invalid_reading";
+            g_evaluating = NO;
             return;
         }
+        control_bat_info = bat_info;
         updateStatistics();
-        if (!g_enable) {
-            return;
+        NSNumber* disableInflow = getlocalKV(@"adv_disable_inflow");
+        BOOL connected = isAdaptorConnect(bat_info, disableInflow);
+        if (!connected) performAcccharge(NO);
+        if (g_enable) {
+            NSNumber* capacity = bat_info[@"CurrentCapacity"];
+            NSNumber* temperature = bat_info[@"Temperature"];
+            cl::Input input = {};
+            input.connected = connected;
+            input.newlyConnected = connected && !isAdaptorConnect(old, disableInflow);
+            input.capacityValid = capacity != nil && cl::validCapacity(capacity.intValue);
+            input.temperatureValid = temperature != nil;
+            input.capacity = capacity.intValue;
+            input.lower = [getlocalKV(@"charge_below") intValue];
+            input.upper = [getlocalKV(@"charge_above") intValue];
+            input.temperatureEnabled = [getlocalKV(@"enable_temp") boolValue];
+            input.temperature = temperature.doubleValue / 100.0;
+            input.cool = getTempAsC(@"charge_temp_below");
+            input.hot = getTempAsC(@"charge_temp_above");
+            input.plugMode = [getlocalKV(@"mode") isEqualToString:@"charge_on_plug"];
+            cl::Result result = cl::evaluate(input, policy_state);
+            if (result.decision != cl::Keep) requestAutomaticCharge(result.decision, reasonName(result.reason));
+            else if (result.reason == cl::Unplugged || result.reason == cl::InvalidReading) {
+                control_reason = reasonName(result.reason);
+            } else if (charge_target >= 0) {
+                // Reassert the last policy decision, including inside the
+                // hysteresis band, if the driver has reset its charging state.
+                NSString* reason = control_reason;
+                if ([reason isEqualToString:@"invalid_reading"] || [reason isEqualToString:@"unplugged"]) reason = @"observe";
+                if (result.reason != cl::Observe) reason = reasonName(result.reason);
+                requestAutomaticCharge(charge_target, reason);
+            }
+            NSDictionary* info = controlInfo();
+            NSString* state = info[@"state"];
+            if (!control_notified && control_error == 0 &&
+                ([state isEqualToString:@"paused"] || [state isEqualToString:@"charging"])) {
+                performAction(charge_target == 0 ? @"stop_charge" : @"start_charge");
+                control_notified = YES;
+            }
+            onBatteryEventEnd();
         }
-        NSString* raw_mode = getlocalKV(@"mode");
-        int mode = 0;
-        if ([raw_mode isEqualToString:@"charge_on_plug"]) {
-            mode = CL_MODE_PLUG;
-        } else if ([raw_mode isEqualToString:@"edge_trigger"]) {
-            mode = CL_MODE_EDGE;
-        }
-        NSNumber* charge_below = getlocalKV(@"charge_below");
-        NSNumber* charge_above = getlocalKV(@"charge_above");
-        NSNumber* enable_temp = getlocalKV(@"enable_temp");
-        NSNumber* capacity = bat_info[@"CurrentCapacity"];
-        BOOL is_charging = [bat_info[@"IsCharging"] boolValue];
-        NSNumber* is_inflow_enabled = bat_info[@"ExternalConnected"];
-        NSNumber* adv_disable_inflow = getlocalKV(@"adv_disable_inflow");
-        BOOL is_adaptor_connected = isAdaptorConnect(bat_info, adv_disable_inflow);
-        BOOL is_adaptor_new_connected = isAdaptorNewConnect(old_bat_info, bat_info, adv_disable_inflow);
-        BOOL is_adaptor_new_disconnected = isAdaptorNewDisconnect(old_bat_info, bat_info, adv_disable_inflow);
-        NSNumber* temperature_ = bat_info[@"Temperature"];
-        float charge_temp_above = getTempAsC(@"charge_temp_above");
-        float charge_temp_below = getTempAsC(@"charge_temp_below");
-        float temperature = temperature_.intValue / 100.0;
-        if (is_adaptor_new_connected) {
-            NSFileLog(@"detect plug in");
-        } else if (is_adaptor_new_disconnected) {
-            NSFileLog(@"detect unplug");
-        }
-        // 优先级: 电量极低 > 停充(电量>温度) > 充电(电量>温度) > 插电
-        do {
-            if (capacity.intValue <= 5) { // 电量极低,优先级=1
-                // 防止误用或意外造成无法充电
-                if (is_adaptor_connected && !is_charging) {
-                    NSFileLog(@"start charging for extremely low capacity %@", capacity);
-                    setInflowStatus(YES);
-                    setBatteryStatus(YES);
-                    performAcccharge(YES);
-                }
-                break;
-            }
-            if (capacity.intValue >= charge_above.intValue) { // 停充-电量高,优先级=2
-                if (is_charging) {
-                    NSFileLog(@"stop charging for high capacity %@ >= %@", capacity, charge_above);
-                    setBatteryStatus(NO);
-                    performAction(@"stop_charge");
-                    performAcccharge(NO);
-                }
-                if (adv_disable_inflow.boolValue && is_inflow_enabled.boolValue) {
-                    NSFileLog(@"disable inflow for high capacity %@ >= %@", capacity, charge_above);
-                    setInflowStatus(NO);
-                }
-                break;
-            }
-            if (enable_temp.boolValue && temperature >= charge_temp_above) { // 停充-温度高,优先级=3
-                if (is_charging) {
-                    NSFileLog(@"stop charging for high temperature %lf >= %lf", temperature, charge_temp_above);
-                    setBatteryStatus(NO);
-                    performAction(@"stop_charge");
-                    performAcccharge(NO);
-                }
-                if (adv_disable_inflow.boolValue && is_inflow_enabled.boolValue) {
-                    NSFileLog(@"disable inflow for high temperature %lf >= %lf", temperature, charge_temp_above);
-                    setInflowStatus(NO);
-                }
-                break;
-            }
-            if (capacity.intValue <= charge_below.intValue) { // 充电-电量低,优先级=4
-                // 禁流模式下电量下降后恢复充电
-                if (is_adaptor_connected) {
-                    if (adv_disable_inflow.boolValue && !is_inflow_enabled.boolValue) {
-                        NSFileLog(@"enable inflow for low capacity %@ <= %@", capacity, charge_below);
-                        setInflowStatus(YES);
-                    }
-                    NSFileLog(@"start charging for low capacity %@ <= %@", capacity, charge_below);
-                    setBatteryStatus(YES);
-                    performAction(@"start_charge");
-                    performAcccharge(YES);
-                }
-                break;
-            }
-            if (mode == CL_MODE_PLUG) {
-                if (enable_temp.boolValue && temperature <= charge_temp_below) { // 充电-温度低,优先级=5
-                    if (is_adaptor_connected) {
-                        if (adv_disable_inflow.boolValue && !is_inflow_enabled.boolValue) {
-                            NSFileLog(@"enable inflow for low temperature %lf < %lf", temperature, charge_temp_below);
-                            setInflowStatus(YES);
-                        }
-                        if (!is_charging) {
-                            NSFileLog(@"start charging for low temperature %lf < %lf", temperature, charge_temp_below);
-                            setBatteryStatus(YES);
-                            performAction(@"start_charge");
-                            performAcccharge(YES);
-                        }
-                    }
-                    break;
-                }
-                if (is_adaptor_new_connected) { // 充电-插电,优先级=6
-                    if (adv_disable_inflow.boolValue && !is_inflow_enabled.boolValue) {
-                        NSFileLog(@"enable inflow for plug in");
-                        setInflowStatus(YES);
-                    }
-                    NSFileLog(@"start charging for plug in");
-                    setBatteryStatus(YES);
-                    performAction(@"start_charge");
-                    performAcccharge(YES);
-                    break;
-                }
-            } else if (mode == CL_MODE_EDGE) {
-                if (is_adaptor_new_connected) {
-                    NSFileLog(@"stop charging for plug in");
-                    setBatteryStatus(NO);
-                    if (adv_disable_inflow.boolValue && is_inflow_enabled.boolValue) {
-                        NSFileLog(@"disable inflow for plug in");
-                        setInflowStatus(NO);
-                    }
-                }
-                break;
-            }
-        } while(false);
-        if (is_adaptor_new_disconnected) {
-            performAcccharge(NO);
-        }
-        onBatteryEventEnd();
+        g_evaluating = NO;
     }
 }
 
 static void initConf(BOOL reset) {
     BOOL predictive_inhibit_charge_avail = NO;
     if (@available(iOS 13.0, *)) {
-        predictive_inhibit_charge_avail = YES;
+        predictive_inhibit_charge_avail = cl::defaultPredictive((int)NSProcessInfo.processInfo.operatingSystemVersion.majorVersion, getDevMdoel().UTF8String);
     }
     BOOL adv_thermal_avail = getThermalData() != nil;
     NSDictionary* def_dic = @{
@@ -735,6 +746,7 @@ static void showFloatwnd(BOOL flag) {
 }
 
 NSDictionary* handleReq(NSDictionary* nsreq) {
+    if (![nsreq isKindOfClass:NSDictionary.class] || ![nsreq[@"api"] isKindOfClass:NSString.class]) return @{@"status": @-11};
     NSString* api = nsreq[@"api"];
     if ([api isEqualToString:@"get_conf"]) {
         NSString* key = nsreq[@"key"];
@@ -751,6 +763,8 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
             kv[@"thermal_simulate_mode"] = getThermalSimulationMode();
             kv[@"ppm_simulate_mode"] = getPPMSimulationMode();
             kv[@"use_smart"] = @(g_use_smart);
+            kv[@"control"] = controlInfo();
+            kv[@"legacy_charge_hint"] = @(!cl::defaultPredictive(13, getDevMdoel().UTF8String) && [getlocalKV(@"adv_predictive_inhibit_charge") boolValue]);
             return @{
                 @"status": @0,
                 @"data": kv,
@@ -758,12 +772,41 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
         } else {
             return @{
                 @"status": @0,
-                @"data": getlocalKV(key),
+                @"data": getlocalKV(key) ?: NSNull.null,
             };
         }
     } else if ([api isEqualToString:@"set_conf"]) {
         NSString* key = nsreq[@"key"];
         id val = nsreq[@"val"];
+        if (![key isKindOfClass:NSString.class] || val == nil || val == NSNull.null) return @{@"status": @-11};
+        id oldValue = getlocalKV(key);
+        BOOL transient = [@[@"floatwnd", @"ppm_simulate_mode"] containsObject:key];
+        if (!transient && oldValue == nil) return @{@"status": @-11};
+        if (oldValue && !(([oldValue isKindOfClass:NSNumber.class] && [val isKindOfClass:NSNumber.class]) ||
+                          ([oldValue isKindOfClass:NSString.class] && [val isKindOfClass:NSString.class]))) return @{@"status": @-11};
+        if ([key isEqualToString:@"floatwnd"] && ![val isKindOfClass:NSNumber.class]) return @{@"status": @-11};
+        if ([key isEqualToString:@"ppm_simulate_mode"] && ![val isKindOfClass:NSString.class]) return @{@"status": @-11};
+        if ([key isEqualToString:@"charge_below"] || [key isEqualToString:@"charge_above"]) {
+            int lower = [key isEqualToString:@"charge_below"] ? [val intValue] : [getlocalKV(@"charge_below") intValue];
+            int upper = [key isEqualToString:@"charge_above"] ? [val intValue] : [getlocalKV(@"charge_above") intValue];
+            if ([val doubleValue] != [val intValue] || !cl::validLimits(lower, upper)) return @{@"status": @-11};
+        }
+        if ([key isEqualToString:@"update_freq"] && ([val doubleValue] < 1 || [val doubleValue] > 600)) return @{@"status": @-11};
+        if ([key isEqualToString:@"mode"] && ![@[@"charge_on_plug", @"edge_trigger"] containsObject:val]) return @{@"status": @-11};
+        if ([key isEqualToString:@"action"] && ![@[@"", @"noti"] containsObject:val]) return @{@"status": @-11};
+        if ([key isEqualToString:@"temp_mode"]) {
+            NSArray* vals = nsreq[@"vals"];
+            if (([val intValue] != 0 && [val intValue] != 1) || ![vals isKindOfClass:NSArray.class] || vals.count != 2 ||
+                ![vals[0] isKindOfClass:NSNumber.class] || ![vals[1] isKindOfClass:NSNumber.class] ||
+                [vals[0] doubleValue] >= [vals[1] doubleValue]) return @{@"status": @-11};
+        }
+        if ([key isEqualToString:@"charge_temp_below"] || [key isEqualToString:@"charge_temp_above"]) {
+            double low = [key isEqualToString:@"charge_temp_below"] ? [val doubleValue] : [getlocalKV(@"charge_temp_below") doubleValue];
+            double high = [key isEqualToString:@"charge_temp_above"] ? [val doubleValue] : [getlocalKV(@"charge_temp_above") doubleValue];
+            BOOL fahrenheit = [getlocalKV(@"temp_mode") intValue] == 1;
+            if (low >= high || low < (fahrenheit ? 50 : 10) || high > (fahrenheit ? 122 : 50)) return @{@"status": @-11};
+        }
+        int requestStatus = 0;
         if ([key isEqualToString:@"floatwnd"]) {
             g_enable_floatwnd = [val boolValue];
             showFloatwnd(g_enable_floatwnd);
@@ -775,7 +818,10 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
         if ([key isEqualToString:@"enable"]) {
             g_enable = [val boolValue];
             if (!g_enable) {
-                resetBatteryStatus();
+                performAcccharge(NO);
+                clearControl(@"disabled");
+                control_error = resetBatteryStatus();
+                requestStatus = control_error;
             } else { // 启用时检查
                 NSNumber* val = getlocalKV(@"disable_smart_charge");
                 if (val.boolValue) {
@@ -789,9 +835,9 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
                 [Service.inst initLocalPush];
             }
         } else if ([key isEqualToString:@"adv_predictive_inhibit_charge"]) {
-            resetBatteryStatus();
+            requestStatus = resetBatteryStatus();
         } else if ([key isEqualToString:@"adv_disable_inflow"]) {
-            resetBatteryStatus();
+            requestStatus = resetBatteryStatus();
         } else if ([key isEqualToString:@"adv_prefer_smart"]) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC), dispatch_get_global_queue(0, 0), ^{
                 exit(0);
@@ -805,11 +851,24 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
                 setlocalKV(@"charge_temp_above", vals[1]);
             }
         }
+        if ([key hasPrefix:@"acc_charge"]) performAcccharge(NO);
+        if ([@[@"enable", @"mode", @"charge_below", @"charge_above", @"enable_temp", @"temp_mode",
+               @"charge_temp_below", @"charge_temp_above", @"adv_disable_inflow", @"adv_predictive_inhibit_charge"] containsObject:key] && g_enable) {
+            cl::State previousPolicy = policy_state;
+            clearControl(@"observe");
+            if (![key isEqualToString:@"enable"]) policy_state = previousPolicy;
+            control_bat_info = nil;
+            onBatteryEvent(getIOPMPSServ());
+        }
         return @{
-            @"status": @0,
+            @"status": @(requestStatus),
         };
     } else if ([api isEqualToString:@"reset_conf"]) {
+        performAcccharge(NO);
         initConf(YES);
+        clearControl(@"observe");
+        control_bat_info = nil;
+        if (g_enable) onBatteryEvent(getIOPMPSServ());
         return @{
             @"status": @0,
         };
@@ -828,11 +887,14 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
         };
     } else if ([api isEqualToString:@"get_statistics"]) {
         NSDictionary* conf = nsreq[@"conf"];
+        if (![conf isKindOfClass:NSDictionary.class] || conf.count > 16) return @{@"status": @-11};
         NSMutableDictionary* data = [NSMutableDictionary dictionary];
         for (NSString* tbl in conf) {
             NSDictionary* conf_for_tbl = conf[tbl];
+            if (![tbl isKindOfClass:NSString.class] || ![conf_for_tbl isKindOfClass:NSDictionary.class]) return @{@"status": @-11};
             NSNumber* n = conf_for_tbl[@"n"];
             NSNumber* last_id = conf_for_tbl[@"last_id"];
+            if (![n isKindOfClass:NSNumber.class] || ![last_id isKindOfClass:NSNumber.class]) return @{@"status": @-11};
             data[tbl] = getDBData(tbl.UTF8String, n.intValue, last_id.intValue);
         }
         return @{
@@ -841,18 +903,39 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
         };
     } else if ([api isEqualToString:@"set_charge_status"]) {
         NSNumber* flag = nsreq[@"flag"];
+        if (![flag isKindOfClass:NSNumber.class]) return @{@"status": @-11};
+        pauseAutomaticControl();
         getBatInfo(&bat_info);
-        int status = setChargeStatus(flag.boolValue);
+        int inflowStatus = flag.boolValue ? setInflowStatus(YES) : 0;
+        int status = setBatteryStatus(flag.boolValue);
+        if (status == 0) status = inflowStatus;
+        charge_target = flag.boolValue ? 1 : 0;
+        target_capacity = bat_info[@"CurrentCapacity"] ? [bat_info[@"CurrentCapacity"] intValue] : -1;
+        target_since = NSProcessInfo.processInfo.systemUptime;
+        control_error = status;
         return @{
             @"status": @(status)
         };
     } else if ([api isEqualToString:@"set_inflow_status"]) {
         NSNumber* flag = nsreq[@"flag"];
+        if (![flag isKindOfClass:NSNumber.class]) return @{@"status": @-11};
+        pauseAutomaticControl();
         getBatInfo(&bat_info);
         int status = setInflowStatus(flag.boolValue);
+        control_error = status;
         return @{
             @"status": @(status)
         };
+    } else if ([api isEqualToString:@"restore_charging"]) {
+        // Disable policy first, so no callback can undo the user's recovery.
+        pauseAutomaticControl();
+        int status = resetBatteryStatus();
+        control_reason = @"restored";
+        charge_target = 1;
+        target_since = NSProcessInfo.processInfo.systemUptime;
+        control_error = status;
+        getBatInfo(&bat_info);
+        return @{@"status": @(status), @"control": controlInfo()};
     }
     return @{
         @"status": @-10
@@ -1135,7 +1218,12 @@ void detectUPSBattery() {
         [_webServer addGETHandlerForBasePath:@"/" directoryPath:html_root indexFilename:@"index.html" cacheAge:1 allowRangeRequests:NO];
         [_webServer addDefaultHandlerForMethod:@"POST" requestClass:GCDWebServerDataRequest.class processBlock:^GCDWebServerResponse*(GCDWebServerDataRequest* request) {
             @autoreleasepool {
-                NSDictionary* nsres = handleReq(request.jsonObject);
+                // GCDWebServer runs handlers on worker threads. Serialize all
+                // policy, config and SQLite access with the IOKit run loop.
+                __block NSDictionary* nsres = nil;
+                void (^work)(void) = ^{ nsres = handleReq(request.jsonObject); };
+                if (NSThread.isMainThread) work();
+                else dispatch_sync(dispatch_get_main_queue(), work);
                 return [GCDWebServerDataResponse responseWithJSONObject:nsres];
             }
         }];
@@ -1161,6 +1249,11 @@ void detectUPSBattery() {
                 }
             }, nil, &iopmpsNoti);
             detectUPSBattery();
+            onBatteryEvent(serv);
+            NSTimer* watchdog = [NSTimer timerWithTimeInterval:5 repeats:YES block:^(NSTimer* timer) {
+                onBatteryEvent(serv);
+            }];
+            [NSRunLoop.mainRunLoop addTimer:watchdog forMode:NSRunLoopCommonModes];
         }
         [LSApplicationWorkspace.defaultWorkspace addObserver:self];
         isBlueEnable(); // init
@@ -1170,6 +1263,28 @@ void detectUPSBattery() {
 }
 @end
 
+
+static int sendManualControl(NSString* api, BOOL flag) {
+    // Shortcuts/URL commands must go through the live daemon too; a separate
+    // process cannot safely change hardware behind the controller's back.
+    NSURL* url = [NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%d/bridge", GSERV_PORT]];
+    NSMutableURLRequest* request = [NSMutableURLRequest requestWithURL:url];
+    request.HTTPMethod = @"POST";
+    request.timeoutInterval = 3;
+    [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    request.HTTPBody = [NSJSONSerialization dataWithJSONObject:@{@"api": api, @"flag": @(flag)} options:0 error:nil];
+    // App launch and daemon startup may race. Retry connection failure only.
+    for (int attempt = 0; attempt < 6; ++attempt) {
+        NSData* response = [NSURLConnection sendSynchronousRequest:request returningResponse:nil error:nil];
+        if (response) {
+            id result = [NSJSONSerialization JSONObjectWithData:response options:0 error:nil];
+            if ([result isKindOfClass:NSDictionary.class] && [result[@"status"] isKindOfClass:NSNumber.class]) return [result[@"status"] intValue];
+            return -1;
+        }
+        [NSThread sleepForTimeInterval:0.5];
+    }
+    return -1;
+}
 
 int main(int argc, char** argv) { // daemon_main
     @autoreleasepool {
@@ -1186,6 +1301,7 @@ int main(int argc, char** argv) { // daemon_main
             }
             [Service.inst serve];
             atexit_b(^{
+                performAcccharge(NO);
                 resetBatteryStatus();
                 if (iopmpsNoti != IO_OBJECT_NULL) {
                     IOObjectRelease(iopmpsNoti);
@@ -1217,13 +1333,13 @@ int main(int argc, char** argv) { // daemon_main
                 }
                 return 0;
             } else if (0 == strcmp(argv[1], "set_charge")) {
+                if (argc < 3 || (strcmp(argv[2], "0") != 0 && strcmp(argv[2], "1") != 0)) return -1;
                 bool flag = argv[2][0] - '0';
-                setChargeStatus(flag);
-                return 0;
+                return sendManualControl(@"set_charge_status", flag);
             } else if (0 == strcmp(argv[1], "set_inflow")) {
+                if (argc < 3 || (strcmp(argv[2], "0") != 0 && strcmp(argv[2], "1") != 0)) return -1;
                 bool flag = argv[2][0] - '0';
-                setInflowStatus(flag);
-                return 0;
+                return sendManualControl(@"set_inflow_status", flag);
             }
         }
         return -1;

@@ -3,6 +3,7 @@
 
 #include <arpa/inet.h>
 #include <dlfcn.h>
+#include <fcntl.h>
 #include <ifaddrs.h>
 #include <objc/runtime.h>
 #include <os/log.h>

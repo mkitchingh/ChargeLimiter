@@ -145,6 +145,7 @@ $.ajax({
 
 const i18n = new VueI18n({
     locale: get_local_lang(),
+    fallbackLocale: "en",
     messages: lang_data,
 })
 
@@ -156,6 +157,10 @@ const App = {
             title: "ChargeLimiter",
             loading: false,
             daemon_alive: false,
+            control: {},
+            control_busy: false,
+            legacy_charge_hint: false,
+            timer_freq: null,
             enable: false,
             ver: "?",
             update_freq: 1,
@@ -239,8 +244,12 @@ const App = {
         },
         ipc_send_wrapper: function(req) {
             var that = this;
+            if (!req.callback && (req.api.indexOf("set_") === 0 || req.api === "reset_conf")) {
+                req.callback = "window.app.control_action_cb";
+            }
             ipc_send(req, status => {
                 if (!status) {
+                    that.control_busy = false;
                     that.errc += 1;
                     var max_hint = (that.update_freq <= 1) ? 10 : 1;
                     if (that.errc > max_hint) {
@@ -307,8 +316,8 @@ const App = {
             this.daemon_alive = true;
             if (jdata.status == 0) {
                 this.bat_info = jdata.data;
-                this.upsbat_info = jdata.data_ups;
-                this.adaptor_info = jdata.data.AdapterDetails;
+                this.upsbat_info = jdata.data_ups || {};
+                this.adaptor_info = jdata.data.AdapterDetails || {};
             } else {
                 this.msg_list.push({
                     "id": get_id(), 
@@ -325,7 +334,7 @@ const App = {
             });
         },
         set_enable: function(v) {
-            if (this.get_health(this.bat_info) < 81) {
+            if (v && this.get_health(this.bat_info) < 81) {
                 this.$confirm(this.$t("health_warn"), this.$t("warn"), {
                     confirmButtonText: this.$t("ok"),
                     cancelButtonText: this.$t("cancel"),
@@ -375,42 +384,36 @@ const App = {
                 this.set_floatwnd(false);
             }
         },
-        set_inflow_status: function(v) {
-            this.ipc_send_wrapper({
-                api: "set_inflow_status",
-                flag: v,
-            });
-            if (window.test) {
-                this.bat_info.ExternalConnected = v;
-            } else {
-                setTimeout(this.get_conf, 1000);
+        control_action_cb: function(jdata) {
+            this.control_busy = false;
+            if (jdata.status !== 0) {
+                this.msg_list.push({id: get_id(), title: this.$t("control_action_failed") + " (" + jdata.status + ")", type: "error", time: 6000});
             }
+            this.get_conf();
+            this.get_bat_info();
+        },
+        restore_charging: function() {
+            if (this.control_busy) return;
+            this.control_busy = true;
+            this.ipc_send_wrapper({api: "restore_charging", callback: "window.app.control_action_cb"});
+        },
+        control_title: function() {
+            if (!this.daemon_alive) return this.$t("control_service_unavailable");
+            return this.$t("control_state_" + (this.control.state || "observing"));
+        },
+        control_detail: function() {
+            if (!this.daemon_alive) return this.$t("control_service_help");
+            return this.$t("control_reason_" + (this.control.reason || "observe"));
+        },
+        control_alert_type: function() {
+            if (!this.daemon_alive || ["command_failed", "stop_unconfirmed", "invalid_reading"].indexOf(this.control.state) >= 0) return "error";
+            return this.enable ? "info" : "warning";
+        },
+        set_inflow_status: function(v) {
+            this.ipc_send_wrapper({api: "set_inflow_status", flag: v, callback: "window.app.control_action_cb"});
         },
         set_charge_status_cb: function(jdata) {
-            var status = jdata.status;
-            if (window.test) {
-                return;
-            }
-            if (status == 0) {
-                if (this.bat_info.PostChargeWaitSeconds) {
-                    var tmout = this.bat_info.PostChargeWaitSeconds;
-                    this.wait_state_chage(this.bat_info, "IsCharging", tmout);
-                }
-            } else if (status == -3) {
-                this.msg_list.push({
-                    "id": get_id(), 
-                    "title": this.$t("conn_adaptor"), 
-                    "type": "error",
-                    "time": 3000,
-                });
-            } else {
-                this.msg_list.push({
-                    "id": get_id(), 
-                    "title": this.$t("fail") + ":" + status, 
-                    "type": "error",
-                    "time": 3000,
-                });
-            }  
+            this.control_action_cb(jdata);
         },
         set_charge_status: function(v) {
             this.ipc_send_wrapper({
@@ -561,10 +564,12 @@ const App = {
             }
         },
         is_charge: function() {
+            if (this.control.target === 0 && ["paused", "pause_reported"].indexOf(this.control.state) >= 0) return false;
+            if (this.bat_info.InstantAmperage > 10) return true;
             if (this.bat_info.IsCharging) {
                 return true;
             }
-            if (this.upsbat_info) {
+            if (this.upsbat_info && Object.keys(this.upsbat_info).length) {
                 if (this.bat_info.InstantAmperage > 10) { // -:放电 0-5mA:停充 +:充电  小板可能控流不精确因此取10mA
                     return true;
                 }
@@ -575,7 +580,7 @@ const App = {
             if (this.bat_info.ExternalConnected) {
                 return true;
             }
-            if (this.upsbat_info) {
+            if (this.upsbat_info && Object.keys(this.upsbat_info).length) {
                 if (this.bat_info.InstantAmperage >= 0) { // -:放电 0-5mA:停充 +:充电  停充时由于硬件供电因此也有电流流入
                     return true;
                 }
@@ -583,6 +588,7 @@ const App = {
             return false;
         },
         get_health: function(item) {
+            if (!item || !item.DesignCapacity || !Number.isFinite(item.NominalChargeCapacity)) return "—";
             return (item.NominalChargeCapacity / item.DesignCapacity * 100).toFixed(2);
         },
         get_hardware_capacity: function() {
@@ -600,20 +606,8 @@ const App = {
             return v + "%";
         },
         get_adaptor_desc: function() {
-            var s = "";
-            if (this.adaptor_info.Description) {
-                s += "[" + this.adaptor_info.Description + "] ";
-            }
-            if (this.adaptor_info.Manufacturer) {
-                s += "[" + this.adaptor_info.Manufacturer + " ";
-            }
-            if (this.adaptor_info.Name) {
-                s += this.adaptor_info.Name + " ";
-            }
-            return s;
-        },
-        get_adaptor_desc: function() {
-            return this.$t(this.adaptor_info.Description) + "(" + this.adaptor_info.Description + ")";
+            var desc = this.adaptor_info.Description;
+            return desc ? this.$t(desc) + "(" + desc + ")" : "—";
         },
         get_devmodel_desc: function() {
             var name = model_dic[this.devmodel];
@@ -631,10 +625,15 @@ const App = {
             if (this.floatwnd) {
                 this.set_floatwnd(false);
             }
+            this.set_refresh_timer(v);
+        },
+        set_refresh_timer: function(v) {
+            if (window.test || (this.timer != null && this.timer_freq === v)) return;
             clearInterval(this.timer);
+            this.timer_freq = v;
             this.timer = setInterval(() => {
-                that.get_bat_info();
-                that.get_conf();
+                this.get_bat_info();
+                this.get_conf();
             }, v * 1000);
         },
         get_ups_temp_desc: function() {
@@ -812,16 +811,8 @@ const App = {
                 this.old_temp_mode = this.temp_mode;
                 set_local_val("conf", "temp_mode", this.temp_mode);
             }
-            if (this.timer == null) {
-                this.get_bat_info();
-                if (window.test) {
-                } else {
-                    this.timer = setInterval(() => {
-                        that.get_bat_info();
-                        that.get_conf();
-                    }, this.update_freq * 1000);
-                }
-            }
+            if (this.timer == null) this.get_bat_info();
+            this.set_refresh_timer(this.update_freq);
         },
         get_conf: function() {
             this.ipc_send_wrapper({

@@ -1,3 +1,12 @@
+Unreleased reliability update:
+* Add independent daemon watchdog, command-result reporting and charging status panel.
+* Add Restore normal charging; manual controls pause automatic limiting.
+* Fix UI refresh changes, temperature hysteresis and Speedup Charging restoration.
+* Preserve saved charging methods; choose legacy defaults for older iPhones on new configurations.
+* Fix external-battery history SQL and several process/memory error paths.
+* Add cross-platform policy/UI regression tests and native syntax checks.
+* See RELIABILITY.md for compatibility scope and required device acceptance checks.
+
 未来计划:
 * 开机自动启动后台
 * iOS12悬浮窗
