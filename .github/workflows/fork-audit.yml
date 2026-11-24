@@ -1,0 +1,116 @@
+name: Public fork audit
+on:
+  push:
+    branches: [research/fork-audit]
+    paths: [.github/workflows/fork-audit.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  checks: write
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Inventory all public forks and branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPORT_REPO: ${{ github.repository }}
+          REPORT_SHA: ${{ github.sha }}
+        shell: python
+        run: |
+          import datetime, json, os, re, time, urllib.request, urllib.error
+          from concurrent.futures import ThreadPoolExecutor
+          token = os.environ['GH_TOKEN']
+          root = 'lich4/ChargeLimiter'
+          headers = {'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'User-Agent': 'ChargeLimiter-fork-audit'}
+          def api(path, body=None):
+              url = path if path.startswith('https:') else 'https://api.github.com/' + path
+              data = json.dumps(body).encode() if body is not None else None
+              request = urllib.request.Request(url, data=data, headers=headers)
+              for attempt in range(3):
+                  try:
+                      with urllib.request.urlopen(request, timeout=45) as response:
+                          return json.load(response), response.headers
+                  except urllib.error.HTTPError as error:
+                      if error.code in (429, 502, 503) and attempt < 2:
+                          time.sleep(3)
+                          continue
+                      raise
+          def pages(path):
+              result = []
+              while path:
+                  data, response_headers = api(path)
+                  result.extend(data)
+                  match = re.search(r'<([^>]+)>; rel="next"', response_headers.get('Link', ''))
+                  path = match.group(1) if match else None
+              return result
+          upstream, _ = api('repos/' + root)
+          reference, _ = api('repos/' + root + '/branches/' + upstream['default_branch'])
+          reference_sha = reference['commit']['sha']
+          forks = {}
+          queue = [root]
+          visited = set()
+          while queue:
+              parent = queue.pop(0)
+              if parent in visited:
+                  continue
+              visited.add(parent)
+              for fork in pages('repos/' + parent + '/forks?per_page=100'):
+                  if fork['full_name'] not in forks:
+                      forks[fork['full_name']] = fork
+                      if fork['forks_count']:
+                          queue.append(fork['full_name'])
+          def inspect(fork):
+              name = fork['full_name']
+              row = {key: fork.get(key) for key in ['full_name', 'default_branch', 'created_at', 'pushed_at', 'updated_at', 'archived', 'forks_count', 'stargazers_count', 'description']}
+              row['branches'] = []
+              row['errors'] = []
+              try:
+                  for branch in pages('repos/' + name + '/branches?per_page=100'):
+                      sha = branch['commit']['sha']
+                      info = {'name': branch['name'], 'sha': sha}
+                      if sha == reference_sha:
+                          info.update(ahead=0, behind=0, status='identical')
+                      else:
+                          try:
+                              comparison, _ = api('repos/' + name + '/compare/' + reference_sha + '...' + sha + '?per_page=100')
+                              info.update(ahead=comparison['ahead_by'], behind=comparison['behind_by'], status=comparison['status'])
+                              if comparison['ahead_by']:
+                                  info['commits'] = [{'sha': c['sha'], 'date': c['commit']['author']['date'], 'message': c['commit']['message']} for c in comparison.get('commits', [])]
+                                  info['files'] = [{'path': f['filename'], 'status': f['status'], 'changes': f['changes']} for f in comparison.get('files', [])]
+                          except Exception as error:
+                              info['error'] = str(error)
+                      row['branches'].append(info)
+                  row['releases'] = [{'tag': r['tag_name'], 'published': r['published_at'], 'url': r['html_url'], 'prerelease': r['prerelease'], 'assets': [{'name': a['name'], 'bytes': a['size'], 'url': a['browser_download_url']} for a in r['assets']]} for r in pages('repos/' + name + '/releases?per_page=100')]
+              except Exception as error:
+                  row['errors'].append(str(error))
+              return row
+          with ThreadPoolExecutor(max_workers=4) as pool:
+              rows = list(pool.map(inspect, sorted(forks.values(), key=lambda x: x['full_name'].lower())))
+          metadata = {'root': root, 'reference_sha': reference_sha, 'reported_network_count': upstream.get('network_count'), 'reported_forks_count': upstream['forks_count'], 'discovered_public_forks': len(rows), 'traversed_fork_lists': sorted(visited), 'audited_at': datetime.datetime.now(datetime.timezone.utc).isoformat()}
+          report = {'metadata': metadata, 'forks': rows}
+          with open('fork-inventory.json', 'w') as stream:
+              json.dump(report, stream, indent=2)
+          chunks = []
+          current = []
+          for row in rows:
+              if current and len(json.dumps(current).encode()) + len(json.dumps(row).encode()) > 40000:
+                  chunks.append(current)
+                  current = []
+              current.append(row)
+          if current:
+              chunks.append(current)
+          for index, chunk in enumerate(chunks, 1):
+              summary = json.dumps({'metadata': metadata, 'forks': chunk}, indent=2)
+              api('repos/' + os.environ['REPORT_REPO'] + '/check-runs', {
+                  'name': 'Fork inventory %d/%d' % (index, len(chunks)),
+                  'head_sha': os.environ['REPORT_SHA'], 'status': 'completed', 'conclusion': 'success',
+                  'output': {'title': '%d public forks inspected' % len(rows), 'summary': '```json\n' + summary + '\n```'}
+              })
+          print(json.dumps(metadata, indent=2))
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Complete-public-fork-inventory
+          path: fork-inventory.json
+          retention-days: 30
