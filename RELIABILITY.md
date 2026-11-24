@@ -14,7 +14,7 @@ implementations. It does not install anything on a device automatically.
   enabled temperature stop. Edge mode still waits for its lower charge threshold.
 - Accepted hardware writes get a full 120-second settling window before retrying;
   rejected writes retry no faster than every 15 seconds. The status panel shows
-  command failures and continued charging after that window. Notifications follow
+  command failures and continued charging after that window. A rise of two percentage points also invalidates a stopped reading, even if the current sensor reports zero. Notifications follow
   observed current rather than merely submitting a command.
 - Manual Charging and External Connected controls, including URL/Shortcuts commands, pause automatic limiting.
   Restore normal charging pauses limiting, requests external input and clears
