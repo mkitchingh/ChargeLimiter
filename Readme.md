@@ -15,15 +15,15 @@ developed by [lich4](https://github.com/lich4/ChargeLimiter).
 
 ## Development status
 
-The **1.7.1 reliability update is under review**, not a released build. The sections
-marked **1.7.1 development** below describe that update. They do not describe the
-original upstream packages or promise that new controls are available in an
-installed 1.7 release. See
-[PR #1](https://github.com/mkitchingh/ChargeLimiter/pull/1) and the
-[validation and device-test checklist](https://github.com/mkitchingh/ChargeLimiter/blob/reliability/charging-recovery/RELIABILITY.md). There is no new installable
-TrollStore package yet. Passing the policy and interface tests does not establish
-that charging control works on every device; native validation and device tests
-are still required.
+The **1.7.1 reliability changes have been merged into the source**, but there is
+no new installable TrollStore package yet. Sections marked **1.7.1 development**
+describe these source changes; the original upstream 1.7 packages do not include
+them. See [PR #1](https://github.com/mkitchingh/ChargeLimiter/pull/1) and the
+[validation and device-test checklist](RELIABILITY.md).
+
+The policy, interface, and history tests and native arm64/arm64e syntax checks
+have passed. Those checks do not produce an installer or establish device
+compatibility. Building the package and testing it on devices are still required.
 
 This fork focuses on predictable charging behavior and recovery:
 
@@ -218,7 +218,7 @@ Common configuration fields:
 | `adv_disable_inflow` | Boolean | Enable automatic input-power cutoff. |
 | `acc_charge` | Boolean | Enable Speedup Charging. |
 
-The daemon's [request handler](https://github.com/mkitchingh/ChargeLimiter/blob/reliability/charging-recovery/ChargeLimiter/daemon.mm) defines the remaining
+The daemon's [request handler](ChargeLimiter/daemon.mm) defines the remaining
 advanced fields. In battery telemetry, `CurrentCapacity` is a percentage,
 `InstantAmperage` is in milliamps, and `Temperature` is in hundredths of a degree
 Celsius. Positive battery current usually indicates charging; negative current
@@ -234,11 +234,11 @@ curl http://127.0.0.1:1230/bridge \
 
 ## Development and validation
 
-The regression tests are on the development branch. With a C++11 compiler,
-Node.js 18 or later, and Python 3, run:
+With a C++11 compiler, Node.js 18 or later, and Python 3, run the regression
+tests from the repository root:
 
 ```sh
-git switch reliability/charging-recovery
+git switch main
 bash tests/run.sh
 ```
 
@@ -246,7 +246,7 @@ The original Xcode project depends on external MonkeyDev, Theos headers, and a
 GCDWebServers framework. The old Theos Makefiles refer to the removed `main.mm`
 and are not a supported build path for this branch. The CI workflow checks policy,
 interface, and history behavior, and includes native syntax checks; it does not
-produce an installable package. See [RELIABILITY.md](https://github.com/mkitchingh/ChargeLimiter/blob/reliability/charging-recovery/RELIABILITY.md) for the full
+produce an installable package. See [RELIABILITY.md](RELIABILITY.md) for the full
 validation scope and device acceptance checklist.
 
 Additional upstream development tools:
@@ -256,7 +256,9 @@ Additional upstream development tools:
 - [TrollStore Remote Helper](https://github.com/lich4/TrollStoreRemoteHelper)
 
 To contribute a translation, update `www/lang.json` and the relevant help file.
-New interface text falls back to English when a translation is missing.
+New interface text falls back to English when a translation is missing. When
+changing features or English instructions, update the Chinese section on a
+best-effort basis as well.
 
 ## Screenshots
 
@@ -291,359 +293,211 @@ changes. ChargeLimiter is free, open-source software licensed under
 
 ## 简体中文
 
-本项目最初以中文编写。本分支主要维护英文文档；所有中文更新均使用 AI 工具尽力维护，可能存在错误或落后于英文内容。以下保留原项目的中文说明，其中部分内容可能对应旧版本；本分支的新行为和验证状态请以英文说明及 [RELIABILITY.md](https://github.com/mkitchingh/ChargeLimiter/blob/reliability/charging-recovery/RELIABILITY.md) 为准。
+ChargeLimiter 用于控制 iPhone 或 iPad 的充电时机，支持电量上限、温度阈值、电池历史记录和悬浮状态窗口。项目受 macOS 版 [AlDente](https://apphousekitchen.com/) 启发，最初由 [lich4](https://github.com/lich4/ChargeLimiter) 开发。
 
-## 介绍
+[返回英文说明](#chargelimiter)
 
-&emsp;&emsp;ChargeLimiter(CL)是针对iOS开发的AlDente替代工具,适用于长时间过充情况下保护电池健康度.  
-&emsp;&emsp;支持有根越狱(???-arm.deb)/无根越狱(???-arm64.deb )/巨魔(???.tipa),目前支持iOS12-17.0(注意: 巨魔环境下安装新版之前请先卸载旧版)
-&emsp;&emsp;测试过的环境: iPhone6/7+iOS12/13 Checkra1n/Unc0ver/Odyssey; iPhone7/X/11+iOS15/16 Palera1n/Dopamine/TrollStore.  
-&emsp;&emsp;v1.4.1功能可以满足大多数用户需求，v1.5兼容不支持停充的电池，v1.6兼容充电电流过大的电池, v1.7兼容SBC    
-&emsp;&emsp;CL是开放式项目,如果有兴趣参与或者对CL有建议的的欢迎参提交代码.    
-&emsp;&emsp;CL纯属偶然兴趣而开发,CL的完美运行强依赖软硬件环境, 作者没有义务保证每个人都完美使用.   如果你的软硬件环境不兼容则不建议使用.    
-&emsp;&emsp;CL承诺永久免费且无广告,但因为使用CL导致系统或硬件方面的影响(或认为会有影响的)作者不负任何责任,用户使用CL即为默认同意本条款.     
+> **语言说明：** 本项目最初以中文编写。本分支目前以英文文档为主要维护版本，中文说明也会随功能和文档变化尽力更新。所有中文更新均借助 AI 工具完成，可能存在翻译错误或更新滞后；如有不一致，请以英文说明为准。
 
-![](https://raw.githubusercontent.com/lich4/ChargeLimiter/main/banner.jpg)
+### 开发状态
 
-## 已知BUG
+**1.7.1 可靠性改进已合并到源代码中，但尚未提供新的 TrollStore 安装包。** 下文标注为“1.7.1 开发版”的内容描述这些源代码改进；原项目的 1.7 安装包不包含这些改动。详情见 [PR #1](https://github.com/mkitchingh/ChargeLimiter/pull/1) 和[验证范围及真机测试清单](RELIABILITY.md)。
 
-* 由于缺少开发环境和设备, CL可能不兼容iOS<=11.x.
-* 悬浮窗暂不支持iOS<=12.x.
-* DEB版本CL可能会由于某些tweak导致启动卡屏,这并非CL本身的bug,这些tweak注入到com.apple.UIKit,可以在此目录寻找:/Library/MobileSubstrate/DynamicLibraries(有根),或/var/jb/Library/MobileSubstrate/DynamicLibraries(无根).
-* 因为系统自身机制原因, 高温模拟在锁屏时失效, 这一点作者认为可行只是时间成本大, 未来有待增强. 另外高温模拟的参数定制未来也有待加入.
+充电策略、界面、历史记录测试及原生 arm64/arm64e 语法检查已通过。这些检查不会生成安装包，也不能证明所有设备均兼容。后续仍需构建安装包并进行真机测试。
 
-## 常见问题
+本分支主要改善充电行为的可预测性和恢复能力：
 
-什么情况下需要用CL?
-* 手机需要长期连电源
-* 手机需要整夜充电
-* 充电时希望控制温度
+- 后台每五秒检查一次充电规则，不受界面刷新频率影响。
+- 区分“已请求停充”“电池数据表明已停充”和“尚未确认停充”。
+- 提供“恢复正常充电”按钮，减少因控制状态异常而需要卸载应用的情况。
+- 手动操作充电或输入电源开关时，暂停自动限制，避免自动规则立即撤销手动操作。
+- 恢复“加速充电”修改前的系统设置。
+- 修复刷新频率切换和外接电池历史记录存储问题。
 
-CL更费电吗?
-* 大多数用户感觉并不明显,CL的服务并不耗电,如果感觉确实耗电可以尝试关闭界面App和悬浮窗,或将更新频率调低到1分钟.
+### 兼容性与安装
 
-CL支持第三方电池吗?
-* CL支持正版电池也支持大部分第三方品牌电池
+ChargeLimiter 需要 **TrollStore 或受支持的越狱环境**。应用使用私有 API 和特殊权限，不能通过普通 IPA 侧载方式获得完整功能。
 
-使用CL后能增加健康度吗？
-* 个人认为健康度递减是自然过程,软件更不可能直接修复硬件,有些用户使用CL前期健康度会涨. 几个月的实测发现涨跌与使用程度有关.
-* 大部分使用者会明显延缓电池健康度下降速度.
-* 个别用户在使用CL后出现健康度下降更快的情况,请立即停用并卸载.
-* 停充且一直连电源的情况下(非禁流),理想情况下电池电流为0,健康度永久不掉.
+| 安装方式 | 安装包 |
+| --- | --- |
+| TrollStore | `.tipa` |
+| 有根越狱 | `iphoneos-arm.deb` |
+| 无根越狱 | `iphoneos-arm64.deb` |
 
-为什么手机无法停充或恢复充电?(小白经常遇到的问题)
-* CL并非傻瓜式工具,如果开启了温控请根据实际情况调整温度上下限,否则到达上限会停止充电,下限又无法达到自然无法充电.
-* CL的设计思路就是减少充电次数,因此不会连着usb就充电,充电/停充都有触发条件,请仔细查看本页说明.
-* 电池由于健康度低,刚启动系统时可以使用CL,一段时间后CL再也无法控制充电/停充.此种情况无法使用CL. 请注意大部分低健康度的电池仍然可以正常使用CL. 
-* 电池由于过热导致硬件停充功能失效,导致CL无法生效. 而电池冷却后硬件停充功能会恢复. 请注意大部分处于高温的的电池仍然可以正常使用CL. 
-* 新电池未激活则有几率导致硬件停充失效.常见品牌激活方法见本页
-* 如果是iPad,如果确定充电状态正常但电量不增加,且电源显示为pd charger,可以尝试重新插拔或更换质量较好的充电线和充电头,直到电源处显示usb brick
-* 如果你的巨魔环境足够稳定, CL服务可以正常运行数月以上, 但如果iCloud半夜同步强杀进程, 或半越狱不稳定导致用户空间重启, 或其他可能导致CL服务失效的情况, 表现为一夜充满, 这并非软件Bug, CL为此提供了尽力而为的保活能力, 包括scheme/悬浮窗拉起服务. 如果你的巨魔不稳定可以使用越狱版本CL. 
+原项目面向 iOS 12–17.0，并报告在部分 iPhone 6、7、X 和 11 上，使用 Checkra1n、Unc0ver、Odyssey、Palera1n、Dopamine 或 TrollStore 进行过测试。这些记录属于原项目，不代表本分支已完成相同验证。实际支持情况取决于设备、电池控制器、系统版本和安装方式。
 
-我的电池&小板硬件是否支持CL停充?
-* 唯一测试方式就是在关闭全局开关的情况下手动控制(开或关)"正在充电"按钮,若120秒内不变(关或开),就是电池或小板存在问题而非软件BUG,以下将硬件无法支持简称"失控"
-* 从近几个月反馈来看少数电池/小板可能因为包括但不限于以下几种原因导致失控: 温度升高(温度高时失控,温度恢复时又可控)/健康度低(一直失控,或系统开机后一段时间内可控,之后失控)/电池未激活(新买电池未做激活导致有概率失控)
-* 以上失控问题由于是硬件层面有问题, 如果是因为不明原因或健康度低导致的失控, 不推荐使用CL及类似工具, 可以尝试更换电池/小板解决; 电池未激活的,确定电池品牌(非软件中显示)并从官方客服获取正确激活方法激活即可;如果因为温度失控的想办法控温即可.
+原版安装包可从[原项目发布页](https://github.com/lich4/ChargeLimiter/releases)获取，**其中不包含本分支的修复**。请遵循对应版本的安装说明；原项目要求 TrollStore 用户在升级前先卸载旧版。
 
-CL(及类似功能的软件)可以不依赖越狱或巨魔类工具吗?
-* CL需要用到私有API所以无法上架.
-* CL需要用到特殊签名因此无法以常规IPA方式来安装, 也无法用自签方式使用.
+### 充电控制——1.7.1 开发版
 
-夏天怎样降低电池温度?
-* 使用CL的Powercuff功能减少硬件用电量,充电状态下会同时降低充电功率
-* 充电状态下,使用低功率充电头充电
-* 购买手机散热器
+#### 自动限制
 
-怎样使用电池最好?
-* 见官方文档<https://www.apple.com.cn/batteries/maximizing-performance/>
-* 避免极端高温和低温使用
-* 避免长时间过充
-* 避免电量耗尽
+设置恢复充电的下限和停止充电的上限，然后打开“启用”（Enable）。下限必须低于上限，默认电量范围为 20–80%。
 
-遇到问题时如何自行诊断?
-* 可以参照5分钟图和日志(/var/root/aldente.log)。例如：发现5分钟图存在1小时以上的数据缺失，就可能是掉后台了。
+| 模式 | 行为 |
+| --- | --- |
+| 插电即充（Plug and charge） | 重新连接充电线后，在电量和温度规则允许时充电；也可在达到电量下限或恢复温度时恢复充电。 |
+| 边缘触发（Edge trigger） | 适用于持续连接电源的设备，按照电量上下限控制充电。电量高于下限时，仅重新插线不会启动充电。 |
 
-如何找到耗电应用?
-* 可以借助观察5分钟图或者Helium的实时电流数据，来检测开启某项系统功能或运行某App会增加多少电流
+启用温控后，达到温度上限会暂停充电，并等待温度降至恢复阈值；低电量不会绕过已经触发的温度暂停。边缘触发模式还需满足恢复充电的电量条件。
 
-## 测试电池兼容性
+“更新频率”（Update frequency）仅影响应用和悬浮窗显示。后台每五秒执行一次的充电检查不受此设置影响。
 
-&emsp;&emsp;在使用CL前需要测试电池兼容性,如果不支持请放弃使用
-* 1.测试电池是否支持停充.关闭CL全局开关,关闭"高级"中所有选项,在“正在充电”按钮开启的状态下,手动关闭之,若120秒内按钮有反应则电池支持停充,但如果停充后有较大持续电池电流(>=5mA)则无法支持停充(有些电池返回电池电流值有误,此时以实际电量变化为准).
-* 2.测试电池是否支持智能停充.开启"高级-智能停充",其余同1.
-* 3.测试电池是否支持禁流.关闭CL全局开关,在“电源已连接”按钮开启的状态下,手动关闭之,若120秒内按钮有反应则电池支持禁流,但如果禁流后有较大持续电流(>=5mA)则无法支持禁流(有些电池返回电池电流值有误,此时以实际电量变化为准).
-* 注意: 有的电池因为老化而健康度过低,会出现刚重启系统时可以使用上述方式停充但过一段时间就再也无法停充,这种电池也无法被CL所兼容;有的电池在温度过高时因为硬件原因无法停充,温度正常后又能正常停充. 
-* 若电池既不支持停充也不支持禁流则永远不被CL支持.
-* 如果使用CL过程中,健康度以不正常的方式下降,请自行调整高级菜单中的选项或卸载CL.
+#### 手动控制与恢复
 
-## 品牌新电池激活
+在本分支中，操作“正在充电”（Charging）或“电源已连接”（External connected）开关会暂停自动限制，以免自动规则立即撤销手动操作。需要重新启用自动控制时，请再次打开“启用”。
 
-&emsp;&emsp;电池保养官方文档: <https://www.apple.com.cn/batteries/maximizing-performance/>。电池激活是指电池刚出厂后需要采取正确方式，排除虚电并激发电池中全部的锂离子活性。建议咨询电池卖家或电池厂商获取正确激活方式，否则可能导致CL无法正常工作，常见品牌已整理在此
+“恢复正常充电”（Restore normal charging）会关闭自动限制、请求恢复外部输入电源，并清除充电抑制状态。命令被拒绝时，应用会报告错误。请求成功仍不等于硬件已经完成切换。
 
-* 诺希: 不管开始有多少电量 ，使用到手机关机，然后进行充电，充满之后再充半小时！循环5~8天（如已充电没关系，下次再重复以上步骤即可）建议使用小电流充电器（即5V1A充电器）进行激活，因为慢充可以确保把电池容量充满，所以效果更佳。快充中间损耗的容量会较大，对激活效果有一定影响
-* Dseven: 用到10%左右再开始充电，不要用到关机，充到100再多充1-2小时，如此循环充电使用5-7次之后，就会完全激发电池里面的电量
-* 德赛: 新电池先把电量耗完再去充满电，第二次用到10%左右再去充满电，循环5-10个周期
-* 欣旺达: 前5次20%左右开始充，充满多冲半小时到一小时，以后随意
-* ART: 新电池用到20%充电，然后充满
-* ZASZ: 勿将电池用到自动关机，前5次充电电量低于15%时开始充电，充满后再充1小时。5次循环后电池待机时间达到正常状态
-* 品胜: 新电池都带一些虚电，用到10%开始充电，不要用到关机，一次性充到100%，再多充1小时拔掉充电器，循环充电使用3-5次后会完全激发电池里面的电量，平时用最好充满，不要边充边玩
-* 长和胜: 新电池大部分是虚电，循环6-10次才会耐用。电量10%以上就要充电，不要低于10%或自动关机才充电，这样可以防止虚电电量过低导致的无法开机
-* 飞毛腿: 建议把原始电量用到10%以下之后再充满100%，然后用到10%以下后又充满100%，如此循环5~10次（大约一周），这样电池才被彻底激活哦(=^_^=)另外，新电池的原始电量不是真实电量的，新电芯还有一大片区域没开始存电呢，原始电量50%只是一小部分区域的50%，不是整个电芯的50%哦，所以新电池的原始电量用得快是正常的
-* 中正: 前3-5次充电称为调整期，应充8小时以上，保证充分激活锂离子的活性。锂离子电池没有记忆效应，但有很强的惰性，应给予充分激活；充电前建议慢充充电，减少快充方式，无论慢充还是快充都不要超过12小时，否则电池很可能会因为长时间的供电产生巨大的电子流而烧坏电芯；有很多用户在充电时还把手机开着，在充电过程中，电池一面因为手机的使用而向外放电，又因电池的充电而向内供电，很可能使电压紊乱导致手机电路板发热，如果有来电时会产生回流电流，对手机内部的零件造成损坏；电池的寿命取决于反复充放电次数，锂电池大约可以充放电500次左右，之后电池的性能会大大减弱，应尽量避免把电池内余电全部放完再充电，否则随着充电次数的增加电池性能会慢慢减弱
-* 曲赛德(超容): 新电池里面是虚电，因为静置的时间久锂电子不活跃，首次使用电池用到10%左右就要充电，充电时间满6小时，连续循环一周，就可以充分激活锂电子的活性，不建议边充边玩，不建议用到没电。
+部分设备应用充电状态变更最多可能需要 120 秒。状态面板会区分等待中的请求和未能确认的停充。除开关位置外，还应观察电池电流和电量变化；系统充电图标可能无法准确反映停充状态。
 
-## 充电宝兼容性
+#### 充电控制方式
 
-&emsp;&emsp;CL可以和充电宝配合使用，停充模式下充电宝优先为手机供电，充电宝电量耗尽后再由手机电池供电，对长途旅行的用户更为有意义，充电宝的容量性价比也远高于手机电池。注意：
-* 无线充电时，如果充电功率不够有可能消耗电池电量，不推荐CL搭配无线充电使用
-* 大部分有线充电宝支持"休眠模式"，在电流低于某个阈值一段时间后，会自动关闭自身电源。这种模式下使用CL，充电宝可能在手机锁屏后由于电流过小导致充电宝自动关闭电源, 造成无CL无法正常工作
-* 大部分有线充电宝支持"小电流模式"，双击或长按电源键后进入小电流模式，这种模式在低电流时不会自动关闭电源，这种模式下CL在手机锁屏后也可以正常工作。注意有的充电宝几小时后会自动退出小电流模式
+| 方式 | 用途 |
+| --- | --- |
+| 停充（Charge inhibition） | 请求停止给电池充电，同时保留外部供电。 |
+| 智能停充（Predictive charging inhibition） | 使用部分较新设备支持的另一种充电抑制属性。 |
+| 禁流（Disable inflow） | 切断外部输入电源，使设备改由电池供电。这与单纯停止给电池充电不同。 |
+| 限流／温度模拟（Limit inflow / thermal simulation） | 通过温度管理设置降低功耗和充电电流，也可能降低设备性能。 |
 
-## 使用前必看
+已保存的充电方式设置会保留。较旧 iPhone 的全新配置默认使用传统方式；较新 iPhone、iPad 和未知设备系列的默认方式保持不变。旧款 iPhone 无法确认停充时，可从状态面板尝试传统方式。应用不会静默切换充电方式，也不会自动开启禁流作为后备方案。
 
-* iPhone8+存在120秒设定充电状态延迟. iPad可能也存在.
-* 停充模式不会更新系统状态栏的充电标志,实际充电状态可以在看爱思助手或者CL查看.禁流模式会改变系统状态栏的充电标志(iPhone8+), 禁流模式在"高级-停充时启用禁流"中设定。
-* 对于巨魔环境,因任何原因导致的服务被杀(比如重启系统/重启用户空间/半越狱不稳定/iCloud夜间同步/其他巨魔App...),将导致CL失效. 
-* CL的设计思路就是减少充电次数,因此不会连着usb就自发充电,也不会无故自动恢复充电,充电/停充都有触发条件,请仔细查看本页说明.
-* 系统自带电池优化会导致CL失效,建议关闭.如果不使用CL需在系统设置中手动重置电池优化开关(先关后开).
-* 新电池请先激活再使用CL, 否则有几率出现硬件停充失效问题。停充过久会出现小板统计有误和硬件停充失效问题, 建议一个月至少满充满放一次.
+#### 加速充电
 
-## 使用说明
+“加速充电”（Speedup Charging）是可选功能，可以修改飞行模式、Wi-Fi、蓝牙、亮度、自动亮度和低电量模式。更新后的实现会在每个充电会话开始时保存原始值，并在停充、关闭该功能、断开电源、恢复正常充电或后台正常退出时恢复。进程被突然终止时，清理逻辑无法执行。
 
-### 名词解释
+对于需要持续联网的中继设备或其他常开设备，除非明确需要这些连接和电源设置变更，否则建议关闭加速充电。
 
-* 停充: 禁止电流流入电池, 此时电池不充电也不放电, 电源直接为设备硬件供电. 用户应优先使用此模式
-* 禁流: 禁止电流流入设备, 此时电池处于放电状态, 电池为设备硬件供电. 电池若不支持停充, 则应使用此模式
-* 限流: 通过模拟高温的方式限制充电电流. 电池在充电时如果电流过大导致异常发热, 则应选择此模式
+### 状态、历史记录与故障排查
 
-### 启用
+状态面板显示当前充电决策的原因，并报告失败或尚未确认的命令。即使电流传感器报告为零，如果停充请求后电量又上升了两个百分点，也会将停充视为未确认。
 
-&emsp;&emsp;设置全局启用,关闭后CL将恢复充电状态,并处于观察者模式,只读取电池信息,不进行任何操作.
+电池历史记录提供五分钟、每小时、每天和每月视图。健康度与容量均为设备报告的估算值。ChargeLimiter 不能修复电池，也不保证健康度读数保持不变。
 
-### 悬浮窗
+如果电量超过上限仍在充电，或无法恢复充电：
 
-* 用于实时查看状态,同时查看服务是否正常运行
-* 可拖动到任意位置
-* 点击可切换CL全局启用状态
-* 若设置为自动隐藏,前台有其他App时自动隐藏
+1. 点击“恢复正常充电”，暂停自动限制并请求恢复。
+2. 最多等待 120 秒，让硬件应用变更。
+3. 检查状态消息、电流和电量趋势。仅开关外观改变不足以证明硬件已经切换。
+4. 如果设备没有响应，在自动限制暂停时逐一测试可用的充电方式。不同硬件及更换后的电池支持情况不同，不能仅凭 API 返回成功判断兼容性。
 
-### 模式
+在具备文件访问权限的环境中，可查看后台日志 `/var/root/aldente.log`。反馈问题时，请提供设备型号、iOS 版本、安装方式、应用版本、充电控制方式及实际观察到的行为。
 
-&emsp;&emsp;插电即充模式适合随用随充的普通用户使用:
-* 重新接入电源且满足充电条件时开始充电
-* 电量低于设定值时开始充电(为禁流设计)
-* 电量高于设定值时停止充电
-* 温度低于设定值时开始充电
-* 温度高于设定值时停止充电
+#### 已知限制
 
-&emsp;&emsp;边缘触发模式适合手机常年连电源的工作室使用:
-* 电量低于设定值时开始充电
-* 电量高于设定值时停止充电
-* 温度高于设定值时停止充电
+- 在 TrollStore 环境下，iOS 终止后台进程或设备重启后，无法保证服务自动恢复。重新打开应用会尝试连接并启动服务。
+- iOS 12 及更早版本不支持悬浮窗。
+- 在越狱设备上，注入的插件可能干扰应用或后台服务。
+- iOS 可能覆盖温度模拟设置，锁屏时也可能无法保持。
+- 系统“优化电池充电”可能与 ChargeLimiter 的规则相互影响。应用提供关闭该设置的选项；停止使用应用时，请检查系统设置。
+- 部分充电宝会在负载较低时自动关机。充电宝停止供电后，ChargeLimiter 无法让其重新输出电力。如设备提供小电流模式，请查阅其说明。
 
-&emsp;&emsp;触发优先级从高到低: 
-* 充电(电量极低)
-* 停充(电量>温度)
-* 充电(电量>温度>插电)
+### 快捷指令——1.7.1 开发版
 
-### 更新频率
+在“快捷指令”中添加“打开 URL”操作，并使用下列地址：
 
-* 更新频率用于设定CL界面App和悬浮窗的数据更新频率.
-* CL的服务并不耗电,界面App和悬浮窗会消耗少量的电,绝大多数用户并无感知.如果实测耗电,可以调低频率.
+| URL | 操作 |
+| --- | --- |
+| `cl:///` | 打开 ChargeLimiter。 |
+| `cl:///exit` | 打开应用，按需启动服务，然后退出界面。 |
+| `cl:///charge` | 暂停自动限制并请求充电。 |
+| `cl:///charge/exit` | 请求充电后退出界面。 |
+| `cl:///nocharge` | 暂停自动限制并请求停充。 |
+| `cl:///nocharge/exit` | 请求停充后退出界面。 |
 
-### 阈值设定
+这些 URL 命令通过正在运行的后台服务执行，使手动操作与自动控制保持一致。
 
-* CL阈值默认设定为20/80/10/35, 你需要根据实际情况设置否则可能无法正常工作.
-* 温度阈值的设定,可根据"历史统计-小时数据"的温度数据设置合适的阈值.   
-* 设定阈值和实际触发值不一定完全相同,例如设定80%上限结果到81%停充,大部分手机差距在0-1%,极少数3-5%,差异值与120秒延迟有关,与充电速度有关,也与电池质量有关.停充后如果存在微弱电流可能造成差值;另外健康度的突然变化也会影响电量;新电池未激活直接使用CL也会导致停充后有较大电流.
-* 电量上限阈值的设定,如果是短期停充,此上限可以根据自己需要设置;如果是iPad长年连电停充,则此上限可以设置为最佳停充电量,最佳停充电确定方法如下:将电量充满,关闭所有耗电App和功能然后静置,让电量自然降低,等待一天后此电量就是最佳停充电量.
+### HTTP 接口——1.7.1 开发版
 
-### 行为
+后台服务在设备本机的 `http://127.0.0.1:1230/bridge` 接受 JSON POST 请求。服务仅绑定 localhost，因此示例必须在设备本机执行，不能直接从同一网络的其他电脑访问。
 
-&emsp;&emsp;用于控制触发充电和停充时的行为,目前仅支持系统通知,每次重装CL需要重选以生效.
-
-### 高级
-
-* SmartBattery和智能停充,绝大多数用户使用默认配置即可,非正版电池如果使用默认配置导致健康度异常下降,可以自定义以最大程度减缓健康度下降速度.
-* 自动禁流,用于兼容不支持停充的电池.开启禁流后等同于消耗电池电量,此时电池损耗和正常使用一致.
-* 高温模拟,Powercuff,温度越高,硬件(充电器/CPU/GPU/背光/WiFi/无线/扬声器等)耗电越少,手机越卡顿,充电电流电压也越低.注意系统本身会根据实际情况调节该项,如果要强制指定模式(不建议)请打开锁定开关.越狱环境下如果存在功能冲突的tweak则CL不生效.
-* 峰值性能,用于控制低温和电量不足时的峰值性能,不建议修改.
-* 自动限流,用于自身流控不好的电池,电流过大会导致电池温度过高,健康度下降.选择合适的高温模拟等级: 可在电量小于30%时充电,电量越低时充电电流越高,手动设置"高级-高温模拟-设置"(等级从"正常"到"重度",等级越高电流越小),每次设置后几秒内可以观察到电流变化,达到合适的电流值时,将该等级设置到"高级-自动限流-高温模拟"中.自动限流在充电时自动设置为指定高温模拟等级(高级-自动限流-高温模拟),停充时自动恢复到默认等级(高级-高温模拟-设置).
-
-注意: 
-* 有些电池可能无法使用高温模拟,以实测为准.
-* 由于系统机制,高温模拟无法在锁屏状态下生效
-
-### 电池信息
-
-* 健康度,与爱思助手保持一致,CL健康度是根据最大实际容量计算的.通常新电池健康度都会超过100%,而系统设置显示的健康度不会超过100%,,所以健康度100%到99%的过程较长.注意健康度在长期停充的状态下可能有突然大幅度下降和统计不准确的情况,此时禁用CL并正常充电几次即可恢复.
-* 硬件电量,一般情况下和系统电量接近,如果差值过大则可能是未校准或质量问题导致.硬件电量比系统电量更准确,硬件电量可能会大于100%也可能为负值,硬件电量大于100%时为过充此时系统电量为100%,为负时为电池亏电,此时系统电量为0%.
-* 电流以"瞬时电流"为准,电池电流为正说明从充电器流入电池,电池电流为负说明电池为设备供电.使用CL且停充状态下电池电流一般为0,此时电流流经电池为设备供电,电池起到闭合电路作用(可以理解为导线),此时对电池的损耗应小于仅使用电池为设备供电.禁流状态下电池电流一般为负.
-
-### 历史统计
-
-&emsp;&emsp;统计图用于查看一段时间内的电池状态,左右滑动可时移,点击上方标签可显示或隐藏特定指标
-
-* 五分钟数据图,详细展示每次充放电时的电量/温度/电流及充电状态
-* 小时数据图,概览充放电时的电量/温度/电流变化及充电状态
-* 天数据图,详细展示每天健康度变化
-* 月数据图,概览每月健康度变化
-
-### 快捷指令
-(适用于某些巨魔用户存在服务被杀导致软件失效的情况):  
-+新建快捷指令 - 添加操作 - 类别 - "网页" - "Safari浏览器" - "打开URL"(以下是URL内容,标题自己设置)
-* cl:///                        打开CL
-* cl:///exit                    打开CL,退出CL(仅拉起服务)
-* cl:///charge/exit      打开CL,启用充电,退出CL
-* cl:///nocharge/exit    打开CL,停用充电,退出CL  
-
-注意: 
-* iPhone8+存在至多120秒延迟
-* 可以在个人自动化中的电量事件使用上述指令实现指定电量开始/停止充电,也可以和其他模式结合实现开机自启(比如打开某App时触发)
-* 快捷指令拉起服务需要在非锁屏状态下生效
-
-集成快捷指令(iOS16+): <https://www.icloud.com/shortcuts/2ec3aed94f414378918f3e082b7bf6b0>
-
-### HTTP接口(可配合快捷指令)
-
-* 例子:
-
-```bash
-curl http://localhost:1230 -d '{"api":"get_conf","key":"enable"}' -H "content-type:application/json"
-=> {"status":0,"data":true}
+```sh
+curl http://127.0.0.1:1230/bridge \
+  -H 'Content-Type: application/json' \
+  -d '{"api":"get_conf"}'
 ```
 
-* 全局参数
+| API | 额外请求字段 | 结果 |
+| --- | --- | --- |
+| `get_conf` | 可选的 `key` | 返回全部配置或指定值。完整响应的 `data.control` 包含控制器状态及原因。 |
+| `set_conf` | `key`、`val` | 更新配置值；无效字段、类型或阈值组合会被拒绝。 |
+| `reset_conf` | 无 | 重置后台负责的可配置默认值。 |
+| `get_bat_info` | 无 | `data` 返回电池信息；如有外接电池，还会返回 `data_ups`。 |
+| `get_statistics` | `conf`，将表名映射到 `n` 和 `last_id` | 返回已存储的电池历史记录。 |
+| `set_charge_status` | 布尔值 `flag` | 暂停自动限制，并请求开启或关闭充电。 |
+| `set_inflow_status` | 布尔值 `flag` | 暂停自动限制，并请求开启或关闭外部输入电源。 |
+| `restore_charging` | 无 | 暂停限制，并请求恢复正常充电及外部输入电源。 |
 
-|键                                            |类型         |描述                                                                                        |
-|----------------------------------|-----------|---------------------------------------------------------------------|
-|enable                                     |布尔         |关闭后CL将处于观察者模式,只读取电池信息,不进行任何操作|
-|floatwnd                                  |布尔         |开启悬浮窗                                                                              |
-|floatwnd_auto                         |布尔         |悬浮窗自动隐藏                                                                       |
-|mode                                       |字符串     |模式,charge_on_plug为插电即充,edge_trigger为边缘触发     |
-|charge_below                         |整型         |电量最小值                                                                              |
-|charge_above                         |整型         |电量最大值                                                                              |
-|enable_temp                           |布尔         |温控开关                                                                                 |
-|charge_temp_above               |整型         |温度最小值                                                                              |
-|charge_temp_below               |整型         |温度最大值                                                                              |
-|acc_charge                             |布尔         |加速充电开关                                                                          |
-|acc_charge_airmode              |布尔         |飞行模式                                                                                 |
-|acc_charge_wifi                      |布尔         |WiFi                                                                                        |
-|acc_charge_blue                    |布尔         |蓝牙                                                                                        |
-|acc_charge_bright                  |布尔         |亮度                                                                                       |
-|acc_charge_lpm                     |布尔         |低电量模式                                                                             |
-|action                                     |字符串      |触发行为,noti为系统通知                                                       |
-|adv_prefer_smart                   |布尔         |开启SmartBattery                                                                  |
-|adv_predictive_inhibit_charge|布尔         |开启智能停充                                                                        |
-|adv_disable_inflow                 |布尔         |开启禁流                                                                               |
-|adv_limit_inflow                     |布尔         |开启限流                                                                                |
-|adv_limit_inflow_mode          |字符串      |限流模拟高温等级,off/nominal/light/moderate/heavy           |
-|adv_def_thermal_mode         |字符串      |默认模拟高温等级,off/nominal/light/moderate/heavy           |
-|adv_thermal_mode_lock        |布尔         |模拟高温等级锁定                                                                  |
-|thermal_simulate_mode         |字符串     |实际温度模拟等级(只读)                                                         |
-|ppm_simulate_mode             |字符串      |(实际)峰值性能等级                                                               |
-|use_smart                              |布尔         |是否支持SmartBattery(只读)                                                 |
+响应中的数值 `status` 为 `0` 时表示请求已被接受，负数表示错误。请求被接受不代表硬件已经完成切换。`-11` 表示请求无效，`-10` 表示未知 API。
 
-* 获取配置get_conf
+常用配置字段：
 
-|请求         |类型         |描述                                     |
-|------------|-----------|--------------------------------|
-|api            |字符串    |get_conf                               |
-|key            |字符串    |全局参数,若不指定则返回所有配置|
-|响应         |                |                                            |
-|status       |整型        |0:成功                                  |
-|data         |                |数据                                     |
+| 字段 | 类型 | 含义 |
+| --- | --- | --- |
+| `enable` | 布尔值 | 启用自动充电限制。 |
+| `mode` | 字符串 | `charge_on_plug` 或 `edge_trigger`。 |
+| `charge_below` / `charge_above` | 整数 | 恢复和停止充电的电量阈值，单位为百分比。 |
+| `enable_temp` | 布尔值 | 启用温度控制。 |
+| `charge_temp_below` / `charge_temp_above` | 数值 | 按配置温度单位表示的恢复和停止温度。 |
+| `update_freq` | 数值 | 界面刷新间隔，范围为 1–600 秒。 |
+| `floatwnd` / `floatwnd_auto` | 布尔值 | 控制悬浮窗显示和自动隐藏。 |
+| `action` | 字符串 | `noti` 表示发送通知，空字符串表示不执行通知。 |
+| `adv_prefer_smart` | 布尔值 | 优先使用可用的 SmartBattery 服务。 |
+| `adv_predictive_inhibit_charge` | 布尔值 | 使用智能停充方式。 |
+| `adv_disable_inflow` | 布尔值 | 启用自动禁流。 |
+| `acc_charge` | 布尔值 | 启用加速充电。 |
 
-* 更改配置set_conf
+其余高级字段以[后台请求处理代码](ChargeLimiter/daemon.mm)为准。在电池数据中，`CurrentCapacity` 是电量百分比，`InstantAmperage` 的单位为毫安，`Temperature` 的单位为百分之一摄氏度。电池电流为正通常表示充电，为负表示放电；个别设备的读数可能不可靠。
 
-|请求         |类型         |描述                                     |
-|------------|-----------|--------------------------------|
-|api            |字符串    |set_conf                               |
-|key            |字符串    |全局参数                              |
-|val            |               |值                                         |
-|响应         |                |                                            |
-|status       |整型        |0:成功                                  |
-|data         |                |数据                                     |
+请求恢复正常充电：
 
-* 获取电池数据get_bat_info
+```sh
+curl http://127.0.0.1:1230/bridge \
+  -H 'Content-Type: application/json' \
+  -d '{"api":"restore_charging"}'
+```
 
-|请求         |类型         |描述                                     |
-|------------|-----------|--------------------------------|
-|api            |字符串    |get_bat_info                         |
-|响应         |                |                                            |
-|status       |整型        |0:成功                                  |
-|data         |                |数据                                     |
+### 开发与验证
 
-|键                                        |类型        |描述                                     |
-|-------------------------------|-----------|--------------------------------|
-|Amperage                           |整型        |电流(mA)                              |
-|AppleRawCurrentCapacity |整型        |原始电量(mAh)                     |
-|BatteryInstalled                   |布尔        |电池已安装(mV)                   |
-|BootVoltage                        |整型        |启动电压(mV)                       |
-|CurrentCapacity                 |整型        |电量(%)                                |
-|CycleCount                        |整型        |循环数                                  |
-|DesignCapacity                  |整型        |设计容量(mAh)                     |
-|ExternalChargeCapable     |布尔        |电源可充电                           |
-|ExternalConnected            |布尔        |电源已连接                           |
-|InstantAmperage                |整型        |瞬时电流(mA)                       |
-|IsCharging                          |布尔        |正在充电                              |
-|NominalChargeCapacity    |整型        |实际容量(mAh)                     |
-|Serial                                  |字符串     |序列号                                 |
-|Temperature                       |整型        |温度(℃/100)                        |
-|UpdateTime                       |整型        |更新时间                              |
-|AdapterDetails.Voltage      |整型        |电压(mV)                              |
-|AdapterDetails.Current      |整型        |电源电流(mA)                      |
-|AdapterDetails.Description|整型        |电源描述                             |
-|AdapterDetails.IsWireless  |整型        |是否无线(需结合电源描述)  |
-|AdapterDetails.Manufacturer|整型     |电源厂商                             |
-|AdapterDetails.Name         |整型        |电源名称                             |
-|AdapterDetails.Voltage      |整型        |电源电压(mV)                      |
-|AdapterDetails.Watts         |整型        |电源功率(W)                        |
+准备 C++11 编译器、Node.js 18 或更高版本及 Python 3 后，在仓库根目录执行回归测试：
 
-* 设置停充set_charge_status
+```sh
+git switch main
+bash tests/run.sh
+```
 
-|请求         |类型         |描述                                    |
-|------------|-----------|-------------------------------|
-|api            |字符串    |set_charge_status               |
-|flag          |布尔         |启用                                     |
-|响应         |                |                                            |
-|status       |整型        |0:成功                                  |
+原 Xcode 工程依赖外部安装的 MonkeyDev、Theos 头文件和 GCDWebServers 框架。旧 Theos Makefile 引用了已移除的 `main.mm`，本分支不将其作为受支持的构建方式。CI 工作流验证充电策略、界面和历史记录，并包含原生语法检查，但不会生成安装包。完整验证范围和真机验收清单见 [RELIABILITY.md](RELIABILITY.md)。
 
-* 设置禁流set_inflow_status
+原项目的其他开发工具：
 
-|请求         |类型         |描述                                    |
-|------------|-----------|-------------------------------|
-|api            |字符串    |set_inflow_status                |
-|flag          |布尔         |启用                                     |
-|响应         |                |                                            |
-|status       |整型        |0:成功                                  |
+- [设备调试](https://github.com/lich4/debugserver_azj)
+- [Web 界面调试](https://github.com/lich4/inspectorplus)
+- [TrollStore Remote Helper](https://github.com/lich4/TrollStoreRemoteHelper)
 
+贡献翻译时，请更新 `www/lang.json` 和对应帮助文件。缺失翻译的新界面文字会回退到英文。修改英文说明或功能说明时，也应尽力同步更新本节中文文档。
 
-下载地址:(https://github.com/lich4/ChargeLimiter/releases)    
-交流QQ群:669869453    
+### 截图
 
-![](https://raw.githubusercontent.com/lich4/ChargeLimiter/main/screenshots/screenshots_cn0.png)
-![](https://raw.githubusercontent.com/lich4/ChargeLimiter/main/screenshots/screenshots_cn1.png)
-![](https://raw.githubusercontent.com/lich4/ChargeLimiter/main/screenshots/screenshots_cn2.png)
-![](https://raw.githubusercontent.com/lich4/ChargeLimiter/main/screenshots/screenshots_cn3.png)
-![](https://raw.githubusercontent.com/lich4/ChargeLimiter/main/screenshots/screenshots_cn_stat0.png)
-![](https://raw.githubusercontent.com/lich4/ChargeLimiter/main/screenshots/screenshots_cn_stat1.png)
-![](https://raw.githubusercontent.com/lich4/ChargeLimiter/main/screenshots/screenshots_cn_night.png)
+以下为原项目界面截图，尚未包含本分支的可靠性改进。
 
-### 编译
+<details>
+<summary>显示原项目截图</summary>
 
-&emsp;&emsp;使用XCode/Theos编译, 需要Theos+MonkeyDev
-* 使用XCode调试App, https://github.com/lich4/debugserver_azj
-* 调试WebUI, https://github.com/lich4/inspectorplus
-* TrollStore快速安装, https://github.com/lich4/TrollStoreRemoteHelper
+![充电设置](screenshots/screenshots_cn0.png)
+![高级设置](screenshots/screenshots_cn1.png)
+![电池历史记录](screenshots/screenshots_cn_stat0.png)
 
-&emsp;&emsp;增加新语言: 修改`www/lang.json` `www/help_en.md`并提交到github或我这.
+</details>
 
-## 感谢
+### 致谢与许可证
 
-* Elfulanopr提供的图标
-* Olivertzeng提供的繁体中文
-* Nawaf提供的阿拉伯语
-* Trickbox0411提供的越南语
-* InnovatorPrime提供的夜间模式
-* Cast提供的快捷指令
+感谢原作者 lich4 及原项目贡献者：
+
+- Elfulanopr——应用图标
+- Olivertzeng——繁体中文
+- Nawaf——阿拉伯语
+- Trickbox0411——越南语
+- InnovatorPrime——深色模式
+- Cast——快捷指令集成
+
+原项目版本历史和本分支改动见 [ChangeLog.md](ChangeLog.md)。ChargeLimiter 是采用 [GPL-3.0](LICENSE) 许可证的免费开源软件。
