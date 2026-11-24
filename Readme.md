@@ -15,9 +15,12 @@ developed by [lich4](https://github.com/lich4/ChargeLimiter).
 
 ## Development status
 
-The **1.7.1 reliability update is under review**, not a released build. See
+The **1.7.1 reliability update is under review**, not a released build. The sections
+marked **1.7.1 development** below describe that update. They do not describe the
+original upstream packages or promise that new controls are available in an
+installed 1.7 release. See
 [PR #1](https://github.com/mkitchingh/ChargeLimiter/pull/1) and the
-[validation and device-test checklist](RELIABILITY.md). There is no new installable
+[validation and device-test checklist](https://github.com/mkitchingh/ChargeLimiter/blob/reliability/charging-recovery/RELIABILITY.md). There is no new installable
 TrollStore package yet. Passing the policy and interface tests does not establish
 that charging control works on every device; native validation and device tests
 are still required.
@@ -53,7 +56,7 @@ The original packages are available from
 include this fork's fixes**. Follow the release-specific installation instructions;
 upstream instructed TrollStore users to uninstall the older app before upgrading.
 
-## Charging controls
+## Charging controls — 1.7.1 development
 
 ### Automatic limiting
 
@@ -154,7 +157,7 @@ method, and observed behavior when reporting a problem.
   ChargeLimiter cannot make it supply power again. Consult the power bank's
   instructions for a low-current mode, if one is available.
 
-## Shortcuts
+## Shortcuts — 1.7.1 development
 
 Use **Open URLs** in Shortcuts to open one of these URLs:
 
@@ -170,7 +173,7 @@ Use **Open URLs** in Shortcuts to open one of these URLs:
 These URL commands use the live daemon so that manual actions and automatic
 control stay consistent.
 
-## HTTP API
+## HTTP API — 1.7.1 development
 
 The daemon accepts JSON POST requests on the device at
 `http://127.0.0.1:1230/bridge`. It binds to localhost; the examples must run on the
@@ -215,7 +218,7 @@ Common configuration fields:
 | `adv_disable_inflow` | Boolean | Enable automatic input-power cutoff. |
 | `acc_charge` | Boolean | Enable Speedup Charging. |
 
-The daemon's [request handler](ChargeLimiter/daemon.mm) defines the remaining
+The daemon's [request handler](https://github.com/mkitchingh/ChargeLimiter/blob/reliability/charging-recovery/ChargeLimiter/daemon.mm) defines the remaining
 advanced fields. In battery telemetry, `CurrentCapacity` is a percentage,
 `InstantAmperage` is in milliamps, and `Temperature` is in hundredths of a degree
 Celsius. Positive battery current usually indicates charging; negative current
@@ -231,10 +234,11 @@ curl http://127.0.0.1:1230/bridge \
 
 ## Development and validation
 
-Run the portable regression tests with a C++11 compiler, Node.js 18 or later, and
-Python 3:
+The regression tests are on the development branch. With a C++11 compiler,
+Node.js 18 or later, and Python 3, run:
 
 ```sh
+git switch reliability/charging-recovery
 bash tests/run.sh
 ```
 
@@ -242,7 +246,7 @@ The original Xcode project depends on external MonkeyDev, Theos headers, and a
 GCDWebServers framework. The old Theos Makefiles refer to the removed `main.mm`
 and are not a supported build path for this branch. The CI workflow checks policy,
 interface, and history behavior, and includes native syntax checks; it does not
-produce an installable package. See [RELIABILITY.md](RELIABILITY.md) for the full
+produce an installable package. See [RELIABILITY.md](https://github.com/mkitchingh/ChargeLimiter/blob/reliability/charging-recovery/RELIABILITY.md) for the full
 validation scope and device acceptance checklist.
 
 Additional upstream development tools:
@@ -287,7 +291,7 @@ changes. ChargeLimiter is free, open-source software licensed under
 
 ## 简体中文
 
-本项目最初以中文编写。本分支主要维护英文文档；所有中文更新均使用 AI 工具尽力维护，可能存在错误或落后于英文内容。以下保留原项目的中文说明，其中部分内容可能对应旧版本；本分支的新行为和验证状态请以英文说明及 [RELIABILITY.md](RELIABILITY.md) 为准。
+本项目最初以中文编写。本分支主要维护英文文档；所有中文更新均使用 AI 工具尽力维护，可能存在错误或落后于英文内容。以下保留原项目的中文说明，其中部分内容可能对应旧版本；本分支的新行为和验证状态请以英文说明及 [RELIABILITY.md](https://github.com/mkitchingh/ChargeLimiter/blob/reliability/charging-recovery/RELIABILITY.md) 为准。
 
 ## 介绍
 
