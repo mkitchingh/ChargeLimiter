@@ -854,7 +854,9 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
         if ([key hasPrefix:@"acc_charge"]) performAcccharge(NO);
         if ([@[@"enable", @"mode", @"charge_below", @"charge_above", @"enable_temp", @"temp_mode",
                @"charge_temp_below", @"charge_temp_above", @"adv_disable_inflow", @"adv_predictive_inhibit_charge"] containsObject:key] && g_enable) {
+            cl::State previousPolicy = policy_state;
             clearControl(@"observe");
+            if (![key isEqualToString:@"enable"]) policy_state = previousPolicy;
             control_bat_info = nil;
             onBatteryEvent(getIOPMPSServ());
         }
