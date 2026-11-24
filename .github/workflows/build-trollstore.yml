@@ -1,0 +1,62 @@
+name: TrollStore test package
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ChargeLimiter/**'
+      - 'www/**'
+      - 'splash.png'
+      - 'scripts/**'
+      - '.github/workflows/build-trollstore.yml'
+permissions:
+  contents: read
+concurrency:
+  group: trollstore-package-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15-intel
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: theos/headers
+          ref: 25ef5c99a31d600cf3a7b88922c1f7a4029c1417
+          path: .ci/headers
+      - uses: actions/checkout@v4
+        with:
+          repository: swisspol/GCDWebServer
+          ref: c6d118f4ecc1d9c2c6130fe8522b50889e78524b
+          path: .ci/webserver
+      - name: Install pinned signing tool
+        shell: bash
+        run: |
+          mkdir -p .ci/bin
+          curl --fail --location --retry 3 \
+            https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus8/ldid_macosx_x86_64 \
+            --output .ci/bin/ldid
+          echo 'd15baf446b7908b202210f3d852e8ba794c6fba4d7f83fe55f9db89b2a2ff9f6  .ci/bin/ldid' | shasum -a 256 --check
+          chmod +x .ci/bin/ldid
+          echo "$PWD/.ci/bin" >> "$GITHUB_PATH"
+      - name: Build and validate arm64 TrollStore package
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/build-trollstore.sh 2>&1 | tee build.log
+      - name: Upload test package and size report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChargeLimiter-1.7.1-TrollStore-arm64
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TrollStore-build-log
+          path: build.log
+          if-no-files-found: ignore
+          retention-days: 14
