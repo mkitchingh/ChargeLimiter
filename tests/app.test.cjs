@@ -48,20 +48,24 @@ test('config refresh adopts another client frequency without duplicate timers', 
     assert.deepEqual(calls, [20000, 60000]);
 });
 
-test('recovery is sent once while pending and failed actions remain visible', () => {
+test('Enable off always permits recovery, including low health, and reports failed writes', () => {
     const {app} = loadApp();
     const requests = [];
     app.ipc_send_wrapper = req => requests.push(req);
-    app.get_conf = app.get_bat_info = () => {};
-    app.restore_charging();
-    app.restore_charging();
+    let refreshes = 0;
+    app.get_conf = app.get_bat_info = () => refreshes++;
+    app.enable = true;
+    app.bat_info = {DesignCapacity: 100, NominalChargeCapacity: 70};
+    app.$confirm = () => { throw new Error('Disabling must never require confirmation'); };
+    app.set_enable(false);
     assert.equal(requests.length, 1);
-    assert.equal(requests[0].api, 'restore_charging');
+    assert.equal(requests[0].api, 'set_conf');
+    assert.equal(requests[0].key, 'enable');
+    assert.equal(requests[0].val, false);
+    assert.equal(app.enable, false);
     app.control_action_cb({status: -2});
-    assert.equal(app.control_busy, false);
     assert.equal(app.msg_list[0].type, 'error');
-    app.restore_charging();
-    assert.equal(requests.length, 2);
+    assert.equal(refreshes, 2);
 });
 
 test('manual controls refresh automatic enable state after the response', () => {
@@ -95,4 +99,19 @@ test('unconfirmed stop and offline service show errors', () => {
     assert.equal(app.control_title(), 'control_state_stop_unconfirmed');
     app.daemon_alive = false;
     assert.equal(app.control_title(), 'control_service_unavailable');
+});
+
+test('disabled state is plain information, hardware failures stay visible, and the limit is included', () => {
+    const {app} = loadApp();
+    app.daemon_alive = true;
+    app.control = {state: 'observing', reason: 'disabled'};
+    assert.equal(app.control_title(), 'control_state_disabled');
+    assert.equal(app.control_alert_type(), 'info');
+    app.control.state = 'command_failed';
+    assert.equal(app.control_title(), 'control_state_command_failed');
+    assert.equal(app.control_alert_type(), 'error');
+    app.control.reason = 'capacity_limit';
+    app.charge_above = 50;
+    app.$t = (key, args) => key + ':' + args.limit;
+    assert.equal(app.control_detail(), 'control_reason_capacity_limit:50');
 });
