@@ -29,7 +29,7 @@ while IFS= read -r source; do
   objects+=("$object")
 done < <(find "$web/GCDWebServer/Core" "$web/GCDWebServer/Requests" "$web/GCDWebServer/Responses" -name '*.m' | sort)
 
-frameworks=(-framework Foundation -framework UIKit -framework CoreFoundation
+frameworks=(-framework Foundation -framework UIKit -framework CoreFoundation -framework CoreGraphics
             -framework CFNetwork -framework CoreServices -framework UserNotifications
             -framework Security -framework SystemConfiguration -lMobileGestalt
             ChargeLimiter/IOKit.tbd ChargeLimiter/BackBoardServices.tbd
