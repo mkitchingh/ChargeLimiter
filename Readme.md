@@ -33,8 +33,8 @@ on a device**; building successfully does not establish charging compatibility.
    downloads a ZIP containing the `.tipa`, a build report, and checksums.
 3. Extract `ChargeLimiter_1.7.1_test_arm64.tipa` and install it through TrollStore.
    Record your existing settings before replacing an older installation.
-4. Test charge limiting, manual input restoration, and **Restore normal charging**
-   before relying on the app for unattended use.
+4. Test charge limiting, manual input restoration, and turning **Enable** off
+   to restore normal charging before relying on the app for unattended use.
 
 The first validated test package is 2,967,336 bytes (about 3 MB). Both executables
 are signed iOS arm64 binaries targeting iOS 12.0 or later; no Intel binaries, SDKs,
@@ -100,10 +100,13 @@ Using the **Charging** or **External connected** switch pauses automatic limitin
 in this fork. This prevents an automatic rule from immediately undoing your
 manual action. Turn **Enable** back on when you want automatic limiting to resume.
 
-**Restore normal charging** turns automatic limiting off, requests external input
-power, and clears charging inhibition. The app reports a rejected command rather
-than silently treating it as successful. A successful request still depends on
-the device's hardware accepting and applying the change.
+Turn **Enable** off to restore normal charging. This disables automatic limits,
+requests external input power, clears charging inhibition, and restores settings
+changed by Speedup Charging. There is no separate recovery button: it would do
+the same thing. Turn **Enable** on again to apply your limits.
+
+The app reports rejected commands. An accepted request still depends on the
+device's hardware applying the change.
 
 Some devices can take up to 120 seconds to apply a charging change. The status
 panel distinguishes a pending stop from an unconfirmed one. Check battery current
@@ -149,7 +152,7 @@ does not repair a battery or guarantee that its reported health will stay fixed.
 
 If charging continues beyond a limit or will not resume:
 
-1. Use **Restore normal charging** to pause automatic limiting and request recovery.
+1. Turn **Enable** off to disable automatic limits and request normal charging.
 2. Allow up to 120 seconds for the hardware to respond.
 3. Check the status message, current, and percentage trend. A switch changing
    appearance is not sufficient proof that the hardware changed state.
@@ -211,7 +214,7 @@ curl http://127.0.0.1:1230/bridge \
 | `get_statistics` | `conf` mapping each table to `n` and `last_id` | Stored battery history. |
 | `set_charge_status` | Boolean `flag` | Pause automatic limiting and request charging on or off. |
 | `set_inflow_status` | Boolean `flag` | Pause automatic limiting and request external input on or off. |
-| `restore_charging` | None | Pause limiting and request normal charging and external input. |
+| `restore_charging` | None | Compatibility alias for the same normal-charging request made by setting `enable` to `false`. |
 
 Responses contain a numeric `status`: `0` means the request was accepted, and a
 negative value indicates an error. Acceptance is not confirmation that the
@@ -241,12 +244,12 @@ advanced fields. In battery telemetry, `CurrentCapacity` is a percentage,
 Celsius. Positive battery current usually indicates charging; negative current
 indicates discharge. Individual devices can report unreliable readings.
 
-To request recovery:
+To disable automatic limits and request normal charging:
 
 ```sh
 curl http://127.0.0.1:1230/bridge \
   -H 'Content-Type: application/json' \
-  -d '{"api":"restore_charging"}'
+  -d '{"api":"set_conf","key":"enable","val":false}'
 ```
 
 ## Development and validation
@@ -330,7 +333,7 @@ ChargeLimiter 用于控制 iPhone 或 iPad 的充电时机，支持电量上限�
 1. 打开 [TrollStore 测试安装包工作流](https://github.com/mkitchingh/ChargeLimiter/actions/workflows/build-trollstore.yml)，选择一次成功运行。
 2. 在 **Artifacts** 下下载 **ChargeLimiter-1.7.1-TrollStore-arm64**。GitHub 会下载一个 ZIP，其中包含 `.tipa`、构建报告和校验值。
 3. 解压出 `ChargeLimiter_1.7.1_test_arm64.tipa`，通过 TrollStore 安装。替换旧版本前，请记录现有设置。
-4. 在长期无人值守使用前，测试电量限制、手动恢复输入电源及“恢复正常充电”功能。
+4. 在长期无人值守使用前，测试电量限制、手动恢复输入电源，以及关闭“启用”后恢复正常充电的行为。
 
 首个通过验证的测试安装包大小为 2,967,336 字节，约 3 MB。两个可执行文件均为已签名的 iOS arm64 程序，最低部署版本为 iOS 12.0；安装包不包含 Intel 程序、SDK 或目标文件。每次构建的实际大小、架构及 SHA-256 见附件中的 `build-report.json`。这些安装包仍需兼容的 TrollStore 环境，不能作为普通 IPA 侧载使用。
 
@@ -338,7 +341,7 @@ ChargeLimiter 用于控制 iPhone 或 iPad 的充电时机，支持电量上限�
 
 - 后台每五秒检查一次充电规则，不受界面刷新频率影响。
 - 区分“已请求停充”“电池数据表明已停充”和“尚未确认停充”。
-- 提供“恢复正常充电”按钮，减少因控制状态异常而需要卸载应用的情况。
+- 关闭“启用”即可请求恢复正常充电，减少因控制状态异常而需要卸载应用的情况。
 - 手动操作充电或输入电源开关时，暂停自动限制，避免自动规则立即撤销手动操作。
 - 恢复“加速充电”修改前的系统设置。
 - 修复刷新频率切换和外接电池历史记录存储问题。
@@ -376,7 +379,9 @@ ChargeLimiter 需要 **TrollStore 或受支持的越狱环境**。应用使用�
 
 在本分支中，操作“正在充电”（Charging）或“电源已连接”（External connected）开关会暂停自动限制，以免自动规则立即撤销手动操作。需要重新启用自动控制时，请再次打开“启用”。
 
-“恢复正常充电”（Restore normal charging）会关闭自动限制、请求恢复外部输入电源，并清除充电抑制状态。命令被拒绝时，应用会报告错误。请求成功仍不等于硬件已经完成切换。
+关闭“启用”（Enable）即可关闭自动限制并请求恢复正常充电：这会关闭自动限制、请求恢复外部输入电源、清除充电抑制状态，并恢复加速充电修改过的设置。不再提供功能相同的独立恢复按钮。需要重新应用限制时，再打开“启用”。
+
+命令被拒绝时，应用会报告错误。请求被接受仍不等于硬件已经完成切换。
 
 部分设备应用充电状态变更最多可能需要 120 秒。状态面板会区分等待中的请求和未能确认的停充。除开关位置外，还应观察电池电流和电量变化；系统充电图标可能无法准确反映停充状态。
 
@@ -405,7 +410,7 @@ ChargeLimiter 需要 **TrollStore 或受支持的越狱环境**。应用使用�
 
 如果电量超过上限仍在充电，或无法恢复充电：
 
-1. 点击“恢复正常充电”，暂停自动限制并请求恢复。
+1. 关闭“启用”，停用自动限制并请求恢复正常充电。
 2. 最多等待 120 秒，让硬件应用变更。
 3. 检查状态消息、电流和电量趋势。仅开关外观改变不足以证明硬件已经切换。
 4. 如果设备没有响应，在自动限制暂停时逐一测试可用的充电方式。不同硬件及更换后的电池支持情况不同，不能仅凭 API 返回成功判断兼容性。
@@ -455,7 +460,7 @@ curl http://127.0.0.1:1230/bridge \
 | `get_statistics` | `conf`，将表名映射到 `n` 和 `last_id` | 返回已存储的电池历史记录。 |
 | `set_charge_status` | 布尔值 `flag` | 暂停自动限制，并请求开启或关闭充电。 |
 | `set_inflow_status` | 布尔值 `flag` | 暂停自动限制，并请求开启或关闭外部输入电源。 |
-| `restore_charging` | 无 | 暂停限制，并请求恢复正常充电及外部输入电源。 |
+| `restore_charging` | 无 | 保留的兼容接口；与将 `enable` 设置为 `false` 时请求恢复正常充电的行为相同。 |
 
 响应中的数值 `status` 为 `0` 时表示请求已被接受，负数表示错误。请求被接受不代表硬件已经完成切换。`-11` 表示请求无效，`-10` 表示未知 API。
 
@@ -478,12 +483,12 @@ curl http://127.0.0.1:1230/bridge \
 
 其余高级字段以[后台请求处理代码](ChargeLimiter/daemon.mm)为准。在电池数据中，`CurrentCapacity` 是电量百分比，`InstantAmperage` 的单位为毫安，`Temperature` 的单位为百分之一摄氏度。电池电流为正通常表示充电，为负表示放电；个别设备的读数可能不可靠。
 
-请求恢复正常充电：
+关闭自动限制并请求恢复正常充电：
 
 ```sh
 curl http://127.0.0.1:1230/bridge \
   -H 'Content-Type: application/json' \
-  -d '{"api":"restore_charging"}'
+  -d '{"api":"set_conf","key":"enable","val":false}'
 ```
 
 ### 开发与验证
