@@ -374,7 +374,7 @@ static void updateDBData(const char* tbl, int tid, NSDictionary* info) {
         }
         sqlite3_bind_int(stmt, 1, tid);
         sqlite3_bind_text(stmt, 2, jstr.UTF8String, -1, SQLITE_STATIC);
-        sqlite3_step(stmt);
+        if (sqlite3_step(stmt) != SQLITE_DONE) NSFileLog(@"history insert failed: %s", sqlite3_errmsg(db));
         sqlite3_finalize(stmt);
     }
 }
@@ -384,6 +384,7 @@ static void initDB(NSString* batId) {
         if (!db) {
             sqlite3* cdb = NULL;
             if (sqlite3_open(DB_PATH, &cdb) != SQLITE_OK) {
+                if (cdb) sqlite3_close(cdb);
                 return;
             }
             db = cdb;
@@ -1252,6 +1253,28 @@ void detectUPSBattery() {
 @end
 
 
+static int sendManualControl(NSString* api, BOOL flag) {
+    // Shortcuts/URL commands must go through the live daemon too; a separate
+    // process cannot safely change hardware behind the controller's back.
+    NSURL* url = [NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%d/bridge", GSERV_PORT]];
+    NSMutableURLRequest* request = [NSMutableURLRequest requestWithURL:url];
+    request.HTTPMethod = @"POST";
+    request.timeoutInterval = 3;
+    [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    request.HTTPBody = [NSJSONSerialization dataWithJSONObject:@{@"api": api, @"flag": @(flag)} options:0 error:nil];
+    // App launch and daemon startup may race. Retry connection failure only.
+    for (int attempt = 0; attempt < 6; ++attempt) {
+        NSData* response = [NSURLConnection sendSynchronousRequest:request returningResponse:nil error:nil];
+        if (response) {
+            id result = [NSJSONSerialization JSONObjectWithData:response options:0 error:nil];
+            if ([result isKindOfClass:NSDictionary.class] && [result[@"status"] isKindOfClass:NSNumber.class]) return [result[@"status"] intValue];
+            return -1;
+        }
+        [NSThread sleepForTimeInterval:0.5];
+    }
+    return -1;
+}
+
 int main(int argc, char** argv) { // daemon_main
     @autoreleasepool {
         g_jbtype = getJBType();
@@ -1301,13 +1324,11 @@ int main(int argc, char** argv) { // daemon_main
             } else if (0 == strcmp(argv[1], "set_charge")) {
                 if (argc < 3 || (strcmp(argv[2], "0") != 0 && strcmp(argv[2], "1") != 0)) return -1;
                 bool flag = argv[2][0] - '0';
-                setChargeStatus(flag);
-                return 0;
+                return sendManualControl(@"set_charge_status", flag);
             } else if (0 == strcmp(argv[1], "set_inflow")) {
                 if (argc < 3 || (strcmp(argv[2], "0") != 0 && strcmp(argv[2], "1") != 0)) return -1;
                 bool flag = argv[2][0] - '0';
-                setInflowStatus(flag);
-                return 0;
+                return sendManualControl(@"set_inflow_status", flag);
             }
         }
         return -1;
