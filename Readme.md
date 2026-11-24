@@ -1,4 +1,297 @@
-* [For English](#Introduction)
+# ChargeLimiter
+
+Control when your iPhone or iPad charges. ChargeLimiter supports charge limits,
+temperature thresholds, battery history, and a floating status window. It is
+inspired by [AlDente](https://apphousekitchen.com/) for macOS and was originally
+developed by [lich4](https://github.com/lich4/ChargeLimiter).
+
+[English](#chargelimiter) · [简体中文](#简体中文)
+
+> **Language note:** This project was originally written in Chinese. This fork is
+> maintained primarily in English. All Chinese-language updates in this fork are
+> best-effort updates made with AI tools; they may contain errors or lag behind
+> the English documentation. The original Chinese documentation is preserved at
+> the bottom of this page.
+
+## Development status
+
+The **1.7.1 reliability update is under review**, not a released build. The sections
+marked **1.7.1 development** below describe that update. They do not describe the
+original upstream packages or promise that new controls are available in an
+installed 1.7 release. See
+[PR #1](https://github.com/mkitchingh/ChargeLimiter/pull/1) and the
+[validation and device-test checklist](https://github.com/mkitchingh/ChargeLimiter/blob/reliability/charging-recovery/RELIABILITY.md). There is no new installable
+TrollStore package yet. Passing the policy and interface tests does not establish
+that charging control works on every device; native validation and device tests
+are still required.
+
+This fork focuses on predictable charging behavior and recovery:
+
+- Check charging rules every five seconds, independently of screen refresh.
+- Show whether a stop was requested, appears to have worked, or remains unconfirmed.
+- Restore normal charging without having to uninstall the app.
+- Pause automatic limiting when you use a manual charging or input-power control.
+- Restore the original settings changed by Speedup Charging.
+- Fix refresh-interval changes and external-battery history storage.
+
+## Compatibility and installation
+
+ChargeLimiter requires **TrollStore or a supported jailbreak**. It uses private
+APIs and special entitlements, so ordinary IPA sideloading is not sufficient.
+
+| Installation | Package |
+| --- | --- |
+| TrollStore | `.tipa` |
+| Rootful jailbreak | `iphoneos-arm.deb` |
+| Rootless jailbreak | `iphoneos-arm64.deb` |
+
+Upstream targeted iOS 12–17.0 and reported testing on several iPhone 6, 7, X, and
+11 configurations using Checkra1n, Unc0ver, Odyssey, Palera1n, Dopamine, or
+TrollStore. Those reports apply to the original project, not to validation of this
+fork. Support depends on the device, battery controller, OS version, and
+installation method.
+
+The original packages are available from
+[upstream releases](https://github.com/lich4/ChargeLimiter/releases). They **do not
+include this fork's fixes**. Follow the release-specific installation instructions;
+upstream instructed TrollStore users to uninstall the older app before upgrading.
+
+## Charging controls — 1.7.1 development
+
+### Automatic limiting
+
+Set a lower threshold for resuming charging and an upper threshold for stopping
+it, then turn on **Enable**. The lower threshold must be below the upper threshold.
+The default charge range is 20–80%.
+
+| Mode | Behavior |
+| --- | --- |
+| **Plug and charge** | Allows charging after a cable reconnect when the charge and temperature rules permit it. Also supports resuming at the lower charge or temperature threshold. |
+| **Edge trigger** | Uses the lower and upper charge thresholds to control charging while the device stays plugged in. A reconnect alone does not start charging above the lower threshold. |
+
+With temperature control enabled, reaching the upper temperature threshold pauses
+charging. Charging remains paused until the resume temperature is reached; a low
+battery reading does not bypass an active temperature stop. In edge-trigger mode,
+the lower charge threshold must also permit charging to resume.
+
+The **Update frequency** setting controls the app and floating-window display.
+The daemon's five-second charging check runs independently of that setting.
+
+### Manual control and recovery
+
+Using the **Charging** or **External connected** switch pauses automatic limiting
+in this fork. This prevents an automatic rule from immediately undoing your
+manual action. Turn **Enable** back on when you want automatic limiting to resume.
+
+**Restore normal charging** turns automatic limiting off, requests external input
+power, and clears charging inhibition. The app reports a rejected command rather
+than silently treating it as successful. A successful request still depends on
+the device's hardware accepting and applying the change.
+
+Some devices can take up to 120 seconds to apply a charging change. The status
+panel distinguishes a pending stop from an unconfirmed one. Check battery current
+and the percentage trend as well as the switch position; the system charging icon
+may not reflect charging inhibition.
+
+### Charging methods
+
+| Method | Purpose |
+| --- | --- |
+| **Charge inhibition** | Requests that the battery stop charging while external power remains available. |
+| **Predictive charging inhibition** | Uses an alternative inhibition property supported by some newer devices. |
+| **Disable inflow** | Cuts external input power, so the device draws from its battery. This differs from stopping battery charging. |
+| **Limit inflow / thermal simulation** | Uses thermal-management settings to reduce power use and charging current. It can also reduce performance. |
+
+Existing charging-method preferences are retained. Fresh configurations on older
+iPhones use the legacy method; defaults for newer iPhones, iPads, and unknown
+families are retained. An older iPhone with an unconfirmed stop can try the legacy
+method from the status panel. The app does not silently switch methods or enable
+input cutoff as a fallback.
+
+### Speedup Charging
+
+This optional feature can change airplane mode, Wi-Fi, Bluetooth, brightness,
+automatic brightness, and Low Power Mode. The update saves the original values
+once per session and restores them when charging stops, the feature is disabled,
+power disconnects, normal charging is restored, or the daemon exits normally.
+An abrupt process termination cannot run cleanup.
+
+For an always-on relay or other device that must stay reachable, leave Speedup
+Charging off unless you specifically want those connectivity and power changes.
+
+## Status, history, and troubleshooting
+
+The status panel explains the current charging decision and reports failed or
+unconfirmed commands. A stopped reading is also treated as unconfirmed if the
+battery percentage rises by two points after the request, even when the current
+sensor reports zero.
+
+Battery history includes five-minute, hourly, daily, and monthly views. Battery
+health and capacity figures are estimates reported by the device. ChargeLimiter
+does not repair a battery or guarantee that its reported health will stay fixed.
+
+If charging continues beyond a limit or will not resume:
+
+1. Use **Restore normal charging** to pause automatic limiting and request recovery.
+2. Allow up to 120 seconds for the hardware to respond.
+3. Check the status message, current, and percentage trend. A switch changing
+   appearance is not sufficient proof that the hardware changed state.
+4. If the device does not respond, test the available charging methods one at a
+   time with automatic limiting paused. Hardware and replacement-battery support
+   vary; do not assume that a method works because its API call was accepted.
+
+When file access is available, the daemon log is at `/var/root/aldente.log`.
+Include the device model, iOS version, installation method, app version, charging
+method, and observed behavior when reporting a problem.
+
+### Known limitations
+
+- TrollStore cannot guarantee that the daemon restarts after iOS terminates it or
+  after a reboot. Reopening the app attempts to reconnect and start the service.
+- Floating-window support is unavailable on iOS 12 and earlier.
+- On jailbroken devices, injected tweaks can interfere with the app or daemon.
+- Thermal simulation can be overridden by iOS and may not persist while locked.
+- Optimized Battery Charging can interact with ChargeLimiter's rules. The app has
+  an option to disable it; review the system setting when you stop using the app.
+- Some power banks turn off when the load is low. If the power bank disconnects,
+  ChargeLimiter cannot make it supply power again. Consult the power bank's
+  instructions for a low-current mode, if one is available.
+
+## Shortcuts — 1.7.1 development
+
+Use **Open URLs** in Shortcuts to open one of these URLs:
+
+| URL | Action |
+| --- | --- |
+| `cl:///` | Open ChargeLimiter. |
+| `cl:///exit` | Open the app, start the service if needed, then exit the interface. |
+| `cl:///charge` | Request charging and pause automatic limiting. |
+| `cl:///charge/exit` | Request charging, then exit the interface. |
+| `cl:///nocharge` | Request a charging stop and pause automatic limiting. |
+| `cl:///nocharge/exit` | Request a stop, then exit the interface. |
+
+These URL commands use the live daemon so that manual actions and automatic
+control stay consistent.
+
+## HTTP API — 1.7.1 development
+
+The daemon accepts JSON POST requests on the device at
+`http://127.0.0.1:1230/bridge`. It binds to localhost; the examples must run on the
+device, not on another computer on the network.
+
+```sh
+curl http://127.0.0.1:1230/bridge \
+  -H 'Content-Type: application/json' \
+  -d '{"api":"get_conf"}'
+```
+
+| API | Additional request fields | Result |
+| --- | --- | --- |
+| `get_conf` | Optional `key` | All configuration fields, or the requested value. The full response includes `data.control` with the controller state and reason. |
+| `set_conf` | `key`, `val` | Update a configuration value. Invalid keys, types, or threshold combinations are rejected. |
+| `reset_conf` | None | Reset the configurable defaults handled by the daemon. |
+| `get_bat_info` | None | Battery telemetry in `data`, plus `data_ups` when available. |
+| `get_statistics` | `conf` mapping each table to `n` and `last_id` | Stored battery history. |
+| `set_charge_status` | Boolean `flag` | Pause automatic limiting and request charging on or off. |
+| `set_inflow_status` | Boolean `flag` | Pause automatic limiting and request external input on or off. |
+| `restore_charging` | None | Pause limiting and request normal charging and external input. |
+
+Responses contain a numeric `status`: `0` means the request was accepted, and a
+negative value indicates an error. Acceptance is not confirmation that the
+hardware has finished applying the change. Status `-11` indicates an invalid
+request; `-10` indicates an unknown API.
+
+Common configuration fields:
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| `enable` | Boolean | Enable automatic charge limiting. |
+| `mode` | String | `charge_on_plug` or `edge_trigger`. |
+| `charge_below` / `charge_above` | Integer | Lower and upper charge thresholds, in percent. |
+| `enable_temp` | Boolean | Enable temperature-based control. |
+| `charge_temp_below` / `charge_temp_above` | Number | Resume and stop temperatures in the configured unit. |
+| `update_freq` | Number | Display refresh interval in seconds, from 1 to 600. |
+| `floatwnd` / `floatwnd_auto` | Boolean | Floating-window visibility and automatic hiding. |
+| `action` | String | `noti` for notifications, or an empty string for none. |
+| `adv_prefer_smart` | Boolean | Prefer the SmartBattery service when available. |
+| `adv_predictive_inhibit_charge` | Boolean | Use predictive charging inhibition. |
+| `adv_disable_inflow` | Boolean | Enable automatic input-power cutoff. |
+| `acc_charge` | Boolean | Enable Speedup Charging. |
+
+The daemon's [request handler](https://github.com/mkitchingh/ChargeLimiter/blob/reliability/charging-recovery/ChargeLimiter/daemon.mm) defines the remaining
+advanced fields. In battery telemetry, `CurrentCapacity` is a percentage,
+`InstantAmperage` is in milliamps, and `Temperature` is in hundredths of a degree
+Celsius. Positive battery current usually indicates charging; negative current
+indicates discharge. Individual devices can report unreliable readings.
+
+To request recovery:
+
+```sh
+curl http://127.0.0.1:1230/bridge \
+  -H 'Content-Type: application/json' \
+  -d '{"api":"restore_charging"}'
+```
+
+## Development and validation
+
+The regression tests are on the development branch. With a C++11 compiler,
+Node.js 18 or later, and Python 3, run:
+
+```sh
+git switch reliability/charging-recovery
+bash tests/run.sh
+```
+
+The original Xcode project depends on external MonkeyDev, Theos headers, and a
+GCDWebServers framework. The old Theos Makefiles refer to the removed `main.mm`
+and are not a supported build path for this branch. The CI workflow checks policy,
+interface, and history behavior, and includes native syntax checks; it does not
+produce an installable package. See [RELIABILITY.md](https://github.com/mkitchingh/ChargeLimiter/blob/reliability/charging-recovery/RELIABILITY.md) for the full
+validation scope and device acceptance checklist.
+
+Additional upstream development tools:
+
+- [Device debugging](https://github.com/lich4/debugserver_azj)
+- [Web interface debugging](https://github.com/lich4/inspectorplus)
+- [TrollStore Remote Helper](https://github.com/lich4/TrollStoreRemoteHelper)
+
+To contribute a translation, update `www/lang.json` and the relevant help file.
+New interface text falls back to English when a translation is missing.
+
+## Screenshots
+
+These screenshots show the original upstream interface, before this fork's
+reliability changes.
+
+<details>
+<summary>Show upstream screenshots</summary>
+
+![Charging settings](screenshots/screenshots_en0.png)
+![Advanced settings](screenshots/screenshots_en1.png)
+![Battery history](screenshots/screenshots_en_stat0.png)
+
+</details>
+
+## Credits and license
+
+Thanks to the original author, lich4, and the upstream contributors:
+
+- Elfulanopr — app icon
+- Olivertzeng — Traditional Chinese
+- Nawaf — Arabic
+- Trickbox0411 — Vietnamese
+- InnovatorPrime — dark mode
+- Cast — Shortcuts integration
+
+See [ChangeLog.md](ChangeLog.md) for the upstream version history and this fork's
+changes. ChargeLimiter is free, open-source software licensed under
+[GPL-3.0](LICENSE).
+
+---
+
+## 简体中文
+
+本项目最初以中文编写。本分支主要维护英文文档；所有中文更新均使用 AI 工具尽力维护，可能存在错误或落后于英文内容。以下保留原项目的中文说明，其中部分内容可能对应旧版本；本分支的新行为和验证状态请以英文说明及 [RELIABILITY.md](https://github.com/mkitchingh/ChargeLimiter/blob/reliability/charging-recovery/RELIABILITY.md) 为准。
 
 ## 介绍
 
@@ -354,334 +647,3 @@ curl http://localhost:1230 -d '{"api":"get_conf","key":"enable"}' -H "content-ty
 * Trickbox0411提供的越南语
 * InnovatorPrime提供的夜间模式
 * Cast提供的快捷指令
-
-## Introduction
-
-ChargeLimiter(CL) is inspired by MacOS version AlDente, used to prevent iDevice from getting overcharged, which will cause damage to the battery.     
-
-Support Rootful Jailbreak(???-arm.deb)/Rootless Jailbreak(???-arm64.deb)/TrollStore(???.tipa). Currently support iOS12-17.0(Notice: For TrollStore, Please uninstall older version CL before installing a newer one)       
-
-Tested on iPhone6/7+iOS12/13 Checkra1n/Unc0ver/Odyssey; iPhone7/X/11+iOS15/16 Palera1n/Dopamine/TrollStore.   
-
-v1.4.1 is for most users; v1.5 is for batteries not support ChargeInhibit; v1.6 is for batteries with too large amperage during charging.    
-
-This project is opensourced, any better ideas, submit code directly; any suggestions, submit to issue region. This software will be opensourced, free, without ads forever. Author is not responsible for any impact on iOS system or hardware caused by this software.    
-
-## Known issues
-
-* Due to the lack of devices to test with, CL may not supported on iOS<=11.
-* Floating window is not supported on iOS<=12.
-* For deb version, some tweaks will cause CL to stuck at SplashScreen, it's not a bug of CL itself. these tweaks, injected into com.apple.UIKit, can be found in /Library/MobileSubstrate/DynamicLibraries(rootful), and /var/jb/Library/MobileSubstrate/DynamicLibraries(rootless).
-
-## FAQ
-
-Why should I use CL?
-* iDevice always connected to a power source
-* iDevice always charged overnight
-* Want to control the temperature during charging
-
-Does CL consume more power?
-* Insensitive for most users. App UI and float window may consume a little power if frequancy is 1sec. if you feel the capacity dropping fast, try to set the update frequency to 1min.
-
-Does CL support 3rd party battery?
-* CL support battery of most brands. 
-
-Will the battery health percentage increase after using CL for a period of time?
-* I don't think it's possible, especially for a software, but there are indeed some users have their battery health increased after using CL for a month.
-* CL will slow down dropping speed of battery health for most users.
-* Health percentage may fluctuate in certain range. There are indeed few users keep dropping health after using CL, please stop using CL in this case.
-* Keep connecting to a power source and enable ChargeInhibit(without DisableInflow) as long as possible, the normal amperage should be 0mA, and the health of battery will never drop.
-
-Why does my iDevice unable to charge or discharge(Most questions from freshman)?
-* CL is not a fully-automatic tool, please set the threshold carefully according to the actual temperature if temperature control is enabled, or CL will surely stop charging and won't re-charge any more.
-* CL is designed to minimize the charging count, so it won't start charging or recover charging for connecting to a power source in "Plug and charge" mode, but will start charging for re-connecting to a power source.
-* A battery with low health may cause the failure of ChargeInhibit/DisableInflow. In this case, ChargeInhibit/DisableInflow works fine after a system reboot, but would fail after tens of minutes. CL is unavailable for this kind of battery. Please notice there are only a few cases about the failure among all the batteries with low health.
-* An overheated battery may cause the failure of ChargeInhibit. In this case, it will resume as normal as the battery get colder. Please notice there are only a few cases about the failure among all the batteries overheated.
-* A new battery without activation may cause the amperage far higher than 5mA, which will break a perfect ChargeInhibit.
-* For iPad, if the battery is charging normally without increasing capacity, and with the description of power source shown as "pd charger", then try to replug the cable or change the cable and charger with better ones, until it shown as "usb brick"
-
-Is it possible to install CL without Jailbreak or TrollStore(-like) environment?
-* Private api is used in CL, so it is impossible to be published to Appstore.
-* Special entitlements is used in CL, so it is impossible to be installed as common ipa files.
-
-How to cool down the battery in summer?
-* Lower power usage of iDevice hardware with "Powercuff" capability in CL, it will reduce the charging wattage in the same time. 
-* Use a charger of lower Watt to charge.
-* Use a heat dissipation or sth.
-
-What is the best way to keep the battery healthy?
-* Refer to <https://www.apple.com.cn/batteries/maximizing-performance/>
-* Avoid use in extremely high or low temperature
-* Avoid long time overcharged
-* Avoid out of power
-
-How can I debug CL myself when sth. goes wrong?
-* View the data in 5min chart and the log(/var/root/aldente.log) to verify the history data of charge/discharge.
-
-How to find out power killer App with CL?
-*  Open the App or enable some system feature, wait some time, and view the data in 5min chart or Amperage in Helium App to find out the killer.
-
-## Compatibility
-
-Please test battery compatibility before using CL, stop and uninstall CL if unsupported
-* 1.Check compatibility of ChargeInhibit. Disable CL by toggling the "Enable" button first, and disable all options in "Advanced", then disable charging by toggling the "Charging" button, any change within 120 seconds means ChargeInhibit is supported, unless the InstantAmperage keep above 5mA after being disabled.(InstantAmperage may be invalid for a few kinds of batteries, in this case take a look at capacity increasement)
-* 2.Check compatibility of PredictiveChargingInhibit. Enable it from "Advanced-Predictive charging inhibit", then follow steps in '1'.
-* 3.Check compatibility of DisableInflow. Disable CL by toggling the "Enable" button first, then disable inflow by toggling the "External connected" button when it is enabled, any change within 120 seconds means DisableInflow is supported, unless the InstantAmperage keep above 5mA after being disabled.(InstantAmperage may be invalid for a few kinds of batteries, in this case take a look at capacity increasement)
-* There are a few cases of battery with low health prevent CL from working well. In this case, CL can control charge/discharge normally after a system reboot, but will fail to control after tens of minutes. CL is unavailable for this kind of battery.
-* The battery will never be supported by CL if neither ChargeInhibit nor DisableInflow is supported.
-* If the health of battery keep dropping abnormally while using CL, please adjust the configuration in Advanced menu, or just uninstall CL.
-
-## Battery activation
-
-Official document: <https://www.apple.com.cn/batteries/maximizing-performance/>
-
-## Compatibility with battery banks
-
-CL can be used together with a power bank. iDevice will be powered by the power bank in the first place in ChargeInhibit mode, and the battery of iDevice will supply power after the power bank running out of power. This is meaningful for users who plans to make a long journey, and power bank have more capacity and lower price than battery. Notice:
-* If the wattage is insufficient in wireless charging, then battery may supply power simultaneously.  If the phone itself consumes a lot of power than the charger can supply, then it is not suitable to use a wireless charger.
-* Most wired power banks support "sleep mode", in which the power bank will automatically turns off power after the current falls below a certain threshold for a period of time. When using CL in this mode, the power bank may turn off the power due to low amperage after the phone is locked, and CL will not able to re-charge any more due to power source disconnection in this case.
-* Most wired power banks support "small current mode" by Double-click or long press the power button, in which the power bank will not automatically turn off the power when the current is low. CL will work perfect in this mode after the screen locked. Please notice that some power banks will automatically exit the "small current mode" after a few hours.
-
-## Notice
-
-* For iPhone8+(equal or higher than), there is 120-seconds delay after setting the charging status , maybe the same for iPad.
-* In ChargeInhibit mode, The lightning icon of system status bar will not be updated, and the actual charging status can be found in 3utools(and similar) or CL, while it will be updated in DisableInflow mode(iPhone8+), this mode is enabled in "Advanced-Control inflow".
-* For TrollStore, if the daemon(of CL) get killed in any condition(such as system-reboot/userspace-reboot/...), CL will become invalid for not being able to restart daemon itself automatically.
-* CL is designed to minimize the charging count, so it won't start charging or recover charging for connecting to a power source in "Plug and charge" mode, it will only start/stop charging under certain conditions as show behind.
-* CL is not compatible with "Optimized Battery Charging" of Settings.app. you'd better disable it. Please re-enable in Settings.app after disabling CL if necessary. It's not recommend to use CL on newest iDevice,  "Optimized Battery Charging" is already perfect from iPhone15.
-* If the iDevice stay in ChargeInhibit mode for too long time, the hardware statistics may be incorrect. It's recommend to charge/discharge the battery once a month at least.
-
-## Instruction
-
-### Terms
-
-* ChargeInhibit: Prohibit the current from flowing into battery. In this mode the battery will neither charge nor discharge, and the power source will power the hardware of iDevice directly. This mode should be should be preferred.
-* DisableInflow: Prohibit the current from flowing into iDevice. In this mode the battery will discharge, and power the hardware of iDevice. This mode should be used only when ChargeInhibit is unsupported by the battery.
-* LimitInflow: Limit the current and prevent iDevice from getting overheat. This mode should be used only when the battery clouldn't take control of the current.
-
-### "Enable" button
-
-Enable or disable CL globally. CL will become an readonly observer if disabled, and shows battery information only.
-
-### Floating window
-
-* View battery information and daemon status in realtime
-* Drag to move anywhere.
-* Tap to enable or disable CL globally. same as "Enable" button.
-* Hide itself when other Apps in foreground if "Auto hide" enabled.
-
-### Mode
-
-"Plug and charge" mode is for individual, charge and discharge at any time, triggers as follows:
-* Start charging on replug the USB cable if condition meets.
-* Start charging if curren capacity lower than specified value.
-* Stop charging if curren capacity higher than specified value.
-* Start charging if temperature lower than specified value.
-* Stop charging if temperature higher than specified value.
-
-"Edge trigger" mode is for developer & studio, with iDevice always connecting to an power source, triggers as follows:
-* Start charging if curren capacity lower than specified value.
-* Stop charging if curren capacity higher than specified value.
-* Stop charging if temperature higher than specified value.
-
-triggers precedence from high to low: 
-* Start charging(Extremely low capacity) 
-* Stop charging(Capacity > Temperature)
-* Start charging(Capacity > Temperature > Plug in)
-
-### Update frequency
-
-* Update frequency is data updating speed of UI, both App UI and floating window.
-* Lower frequency, more power maybe saved. Insensitive to most users with 1sec, it's up to you.
-
-### The thresholds
-
-* The default threshold is set to 20/80/10/35, you need to adjust them yourself to get CL work as expected.
-* Please set temperature threshold according to "History-Hourly Data".
-* The real value stop on trigger is not necessarily equal to the target value, the differ is 0-1% in most situations, a few users got 3-5% , the differ has sth. to do with the "120 seconds delay", charging speed, and battery hardware itself. If weak amperage occurs after stopping charging, the differ maybe higher than 3%. besides, A suddenly change of the battery health may cause this situation; A new battery without activation may cause this situation.
-
-### Action
-
-Action on trigger start/stop charging. Please reset it after reinstalling/updating CL.
-
-### Advanced
-
-* For "SmartBattery" and "Predictive charging inhibit", default configuration is for most users. Recombination them to find the best configuration for yourself.
-* Auto inhibit inflow, DisableInflow mode is for batteries doesn't support ChargeInhibit mode, iDevice will start to consume power of battery after stopping charging if enabled.
-* Thermal simulation, same as Powercuff, the higher temperature, the less power consumption of hardware(Charger/CPU/GPU//Backlight/WiFi/Radio/Speaker/Arc/...),  poorer performance, lower charging amperage and lower charging voltage. iOS system itself will update the staus according to actual situation, if you want to force specified value(not recommended), please enable "Lock". CL will be invalid if confict with other tweak with similar functionality under Jailbreak environment.
-* Peak Power, control peak power performance under low temperature or low capacity, Do not change it unless you know what you are doing.
-* Auto limit inflow, apply thermal simulation against high temperature and health dropping of the batteries losing control of Amperage. You can find the fitful level in this way: Start charging when current capacity below 30%(the lower capacity, the higher amperage), try to select "Advanced-Thermal simulate" level(from "Norminal" to "Heavy", the higher level, the lower amperage), the amperage will change in a few seconds. When you catch the acceptable amperage value, set the level to "Advanced-Auto limit inflow-Thermal simulation". In this case, the thermal simulate level will be set to level specified in "Advanced-Auto limit inflow-Thermal simulation" automatically when CL start charging, and will be set to default level specified in "Advanced-Thermal simulate" when CL stop charging.
-
-### Battery Information
-
-* Health of battery is calculated with NominalChargeCapacity. In general the health of a new battery is higher than 100%, even though it shows always 100% in system status bar. Please be aware of that the health maybe drop largely suddenly due to long term ChargeInhibit, in this case use should disable CL temporarily and have the battery fully charged several times to recover the health.
-* Hardware capacity is close to the system capacity and is more accurate in most cases, too much difference may indicate the battery is not calibrated or of poor quality. Hardware capacity chould be higher than 100%(100% in system status bar) if overcharged, and could be negative(0 in system status bar) if undercharged, 
-* InstantAmperage with positive value means the current flow into battery from the power source, negative means the current flow into iDevice from battery without any power source. InstantAmperage should be 0mA normally in ChargeInhibit mode, in this case the current will flow through battery and feed iDevice, it will cause less damage to battery than use battery to supply power directly. (*In fact, keep connecting to any power source and stop charging, the health may never drop*). InstantAmperage should be negative in DisableInflow mode.
-
-### History
-
-&emsp;&emsp;Show battery status for a period of time, slide horizontally to shift time, and click the legend to hide or show specific source.
-
-* Five minute data, show battery status in detail for each charge or discharge cycle, including CurrentCapacity/Temperature/Amperage.
-* Hourly data, show battery status for all charge or discharge cycles, including CurrentCapacity/Temperature/Amperage.
-* Daily data, show battery health in detail for each day.
-* Monthly data, show battery health for each month.
-
-### For Shortcuts.app
-
-New Shortcut - Add Action - Web - Safari - Open URLs    
-* cl:///                         (open CL)
-* cl:///exit                   (open CL, exit CL, launch daemon only)
-* cl:///charge              (open CL, start charging)
-* cl:///charge/exit       (open CL, start charging, exit CL)
-* cl:///nocharge         (open CL, stop charging)
-* cl:///nocharge/exit  (open CL, stop charging, exit CL)
-
-Integrated shortcut(iOS16+): <https://www.icloud.com/shortcuts/2ec3aed94f414378918f3e082b7bf6b0>
-
-### HTTP Interface
-
-* Example
-
-```bash
-curl http://localhost:1230 -d '{"api":"get_conf","key":"enable"}' -H "content-type:application/json"
-=> {"status":0,"data":true}
-```
-
-* Global configuration fields
-
-|key                                         |type         |description                                                                               |
-|----------------------------------|-----------|---------------------------------------------------------------------|
-|enable                                     |boolean         |CL will become an readonly observer if disabled, and shows battery information only|
-|floatwnd                                  |boolean         |Floating window                                                                      |
-|floatwnd_auto                         |boolean         |Floating window auto hide                                                      |
-|mode                                       |string     |Mode,"charge_on_plug" or "edge_trigger"                             |
-|charge_below                         |integer         |Capacity threshold                                                                |
-|charge_above                         |integer         |Capacity threshold                                                               |
-|enable_temp                           |boolean         |Temperature control                                                               |
-|charge_temp_above               |integer         |Temperature threshold                                                         |
-|charge_temp_below               |integer         |Temperature threshold                                                         |
-|acc_charge                             |boolean         |Speedup charging                                                                 |
-|acc_charge_airmode              |boolean         |Airplane mode                                                                       |
-|acc_charge_wifi                      |boolean         |WiFi                                                                                       |
-|acc_charge_blue                    |boolean         |Bluetooth                                                                               |
-|acc_charge_bright                  |boolean         |Brightness                                                                             |
-|acc_charge_lpm                     |boolean         |LPM                                                                                       |
-|action                                     |string      |Action on trigger, "noti" to use system notification              |
-|adv_prefer_smart                   |boolean         |Use SmartBattery                                                                  |
-|adv_predictive_inhibit_charge|boolean         |Use predictive inhibit charge                                                |
-|adv_disable_inflow                 |boolean         |Auto inhibit inflow                                                                 |
-|adv_limit_inflow                     |boolean         |Auto limit inflow                                                                     |
-|adv_limit_inflow_mode          |string      |Auto limit inflow with thermal simulation level,off/nominal/light/moderate/heavy|
-|adv_def_thermal_mode         |string      |Default thermal simulation level,off/nominal/light/moderate/heavy|
-|adv_thermal_mode_lock        |boolean         |Lock thermal simulation level                                               |
-|thermal_simulate_mode         |string     |Actual  thermal simulation level(readonly)                            |
-|ppm_simulate_mode             |string      |Actual Peak power performance level                                 |
-|use_smart                              |boolean         |SmartBattery available(readonly)                                          |
-
-* get_conf
-
-|request     |type        |description                           |
-|------------|-----------|--------------------------------|
-|api            |string      |get_conf                               |
-|key            |string     |return all conf if unspecified|
-|response  |                |                                            |
-|status       |integer    |0:success                            |
-|data         |                |data                                     |
-
-* set_conf
-
-|request     |type        |description                           |
-|------------|-----------|--------------------------------|
-|api            |string    |set_conf                               |
-|key            |string    |Global configuration fields  |
-|val            |               |data                                     |
-|response         |                |                                            |
-|status       |integer        |0:success                        |
-|data         |                |data                                   |
-
-* get_bat_info
-
-|request     |type        |description                           |
-|------------|-----------|--------------------------------|
-|api            |string    |get_bat_info                         |
-|response         |                |                                            |
-|status       |integer        |0:成功                                  |
-|data         |                |数据                                     |
-
-|key                                     |type         |description                           |
-|-------------------------------|-----------|--------------------------------|
-|Amperage                           |integer        |(mA)                                 |
-|AppleRawCurrentCapacity |integer        |(mAh)                               |
-|BatteryInstalled                   |boolean        |(mV)                               |
-|BootVoltage                        |integer        |(mV)                                 |
-|CurrentCapacity                 |integer        |(%)                                   |
-|CycleCount                        |integer        |                                         |
-|DesignCapacity                  |integer        |(mAh)                               |
-|ExternalChargeCapable     |boolean        |                                      |
-|ExternalConnected            |boolean        |                                      |
-|InstantAmperage                |integer        |(mA)                                |
-|IsCharging                          |boolean        |                                      |
-|NominalChargeCapacity    |integer        |(mAh)                              |
-|Serial                                  |string          |                                        |
-|Temperature                       |integer        |(℃/100)                          |
-|UpdateTime                       |integer        |                                        |
-|AdapterDetails.Voltage      |integer        |(mV)                                |
-|AdapterDetails.Current      |integer        |(mA)                               |
-|AdapterDetails.Description|integer        |                                      |
-|AdapterDetails.IsWireless  |integer        |                                      |
-|AdapterDetails.Manufacturer|integer     |                                     |
-|AdapterDetails.Name         |integer        |                                     |
-|AdapterDetails.Voltage      |integer        |(mV)                               |
-|AdapterDetails.Watts         |integer        |(W)                                 |
-
-* set_charge_status
-
-|request         |type         |description                                    |
-|------------|-----------|-------------------------------|
-|api            |string    |set_charge_status               |
-|flag          |boolean         |enable                                     |
-|response         |                |                                            |
-|status       |integer        |0:success                                  |
-
-* set_inflow_status
-
-|request         |type         |description                                    |
-|------------|-----------|-------------------------------|
-|api            |string    |set_inflow_status                |
-|flag          |boolean         |enable                                     |
-|response         |                |                                            |
-|status       |integer        |0:success                                  |
-
-If you have better ideas, please join the project and push your code   
-Download URL:(https://github.com/lich4/ChargeLimiter/releases)    
-Telegram group:  ![](https://img.shields.io/static/v1?label=&message=https://t.me/chargelimiter&color=red)    
-https://t.me/chargelimiter   
-
-![](https://raw.githubusercontent.com/lich4/ChargeLimiter/main/screenshots/screenshots_en0.png)
-![](https://raw.githubusercontent.com/lich4/ChargeLimiter/main/screenshots/screenshots_en1.png)
-![](https://raw.githubusercontent.com/lich4/ChargeLimiter/main/screenshots/screenshots_en2.png)
-![](https://raw.githubusercontent.com/lich4/ChargeLimiter/main/screenshots/screenshots_en3.png)
-![](https://raw.githubusercontent.com/lich4/ChargeLimiter/main/screenshots/screenshots_en_stat0.png)
-![](https://raw.githubusercontent.com/lich4/ChargeLimiter/main/screenshots/screenshots_en_stat1.png)
-![](https://raw.githubusercontent.com/lich4/ChargeLimiter/main/screenshots/screenshots_en_night.png)
-
-
-### Compile
-
-XCode+MonkeyDev or Theos
-* Debug App with XCode, see https://github.com/lich4/debugserver_azj
-* Debug WebUI, see https://github.com/lich4/inspectorplus
-* Install on TrollStore, see https://github.com/lich4/TrollStoreRemoteHelper
-
-Add new language: modify `www/lang.json` `www/help_en.md` and submit to github or to me.
-
-## Special Thanks
-
-* Icon from Elfulanopr
-* Traditional Chinese language from Olivertzeng
-* Arab language from Nawaf
-* Vietnamese language from Trickbox0411 
-* Dark mode from InnovatorPrime 
-* Shortcut from Cast
-
