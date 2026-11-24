@@ -1,6 +1,6 @@
 # Reliability update
 
-This branch keeps the existing TrollStore, rootful, rootless and floating-window
+This update keeps the existing TrollStore, rootful, rootless and floating-window
 implementations. It does not install anything on a device automatically.
 
 ## Behavior
@@ -45,7 +45,24 @@ compatibility. The existing Xcode project still depends on the author's external
 MonkeyDev, Theos and GCDWebServers framework setup. Its old Theos Makefiles refer
 to the removed `main.mm` and are not a supported build route for this branch.
 
-## Device acceptance checks before merging
+## TrollStore test package
+
+The separate `TrollStore test package` workflow builds a signed `.tipa` from
+source using the macOS iPhoneOS SDK, pinned Theos headers, pinned GCDWebServer
+source, and a checksum-verified signing tool. It does not require the original
+MonkeyDev setup. Download the `ChargeLimiter-1.7.1-TrollStore-arm64` artifact from
+a successful run and extract the `.tipa` inside the ZIP.
+
+The standalone build targets iOS arm64 with a minimum deployment version of
+12.0. The compiler target is explicit even on Intel runners. Only the `Payload`
+directory is archived; host tools, SDKs, object files and debug bundles are not
+included. Validation checks executable architecture, iOS deployment target,
+embedded signatures, entitlements, resources and package size. Each artifact
+includes a JSON report and SHA-256 checksum. The first validated test package is
+2,967,336 bytes. Signing and bundle validation do not establish that the app
+launches or controls a particular battery correctly; device tests remain pending.
+
+## Device acceptance checks before release
 
 1. On the iPhone 6s / iOS 15.8.4 TrollStore relay, verify a 40–50% range: stop at
    the upper threshold, remain stopped inside the band, resume at the lower one.
