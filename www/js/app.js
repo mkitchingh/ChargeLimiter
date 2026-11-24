@@ -564,7 +564,8 @@ const App = {
             }
         },
         is_charge: function() {
-            if (typeof this.bat_info.InstantAmperage === "number") return this.bat_info.InstantAmperage > 10;
+            if (this.control.target === 0 && ["paused", "pause_reported"].indexOf(this.control.state) >= 0) return false;
+            if (this.bat_info.InstantAmperage > 10) return true;
             if (this.bat_info.IsCharging) {
                 return true;
             }
