@@ -92,10 +92,20 @@ jobs:
           report = {'metadata': metadata, 'forks': rows}
           with open('fork-inventory.json', 'w') as stream:
               json.dump(report, stream, indent=2)
+          # Keep the complete JSON artifact, but bound API check summaries.
+          summary_rows = json.loads(json.dumps(rows))
+          for row in summary_rows:
+              for branch in row['branches']:
+                  if len(branch.get('commits', [])) > 12:
+                      branch['commit_count_returned'] = len(branch['commits'])
+                      branch['commits'] = branch['commits'][:6] + branch['commits'][-6:]
+                  if len(branch.get('files', [])) > 50:
+                      branch['file_count_returned'] = len(branch['files'])
+                      branch['files'] = branch['files'][:50]
           chunks = []
           current = []
-          for row in rows:
-              if current and len(json.dumps(current).encode()) + len(json.dumps(row).encode()) > 40000:
+          for row in summary_rows:
+              if current and len(json.dumps(current + [row], indent=2).encode()) > 40000:
                   chunks.append(current)
                   current = []
               current.append(row)
