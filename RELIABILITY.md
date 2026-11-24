@@ -16,7 +16,7 @@ implementations. It does not install anything on a device automatically.
   rejected writes retry no faster than every 15 seconds. The status panel shows
   command failures and continued charging after that window. Notifications follow
   observed current rather than merely submitting a command.
-- Manual Charging and External Connected controls pause automatic limiting.
+- Manual Charging and External Connected controls, including URL/Shortcuts commands, pause automatic limiting.
   Restore normal charging pauses limiting, requests external input and clears
   both charging-inhibit properties. The result is reported; hardware support is
   still required. Enable limiting again explicitly when ready.
@@ -36,7 +36,7 @@ implementations. It does not install anything on a device automatically.
 Run `bash tests/run.sh` with a C++11 compiler, Node 18+ and Python 3. Tests cover
 the charge-threshold matrix, both charging modes, thermal hysteresis, old/new
 model defaults, driver settling windows, current-based stop checks, refresh
-changes, manual callbacks, recovery failures, and missing adapter data.
+changes, manual callbacks, recovery failures, missing adapter data, and the actual history SQL templates with external battery identifiers.
 
 GitHub Actions runs these checks on Linux and macOS, plus arm64/arm64e native
 syntax checks against the installed iOS SDK and pinned Theos/GCDWebServer headers.
