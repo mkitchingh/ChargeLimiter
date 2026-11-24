@@ -1,0 +1,48 @@
+name: Reliability checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  policy-and-ui:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: bash tests/run.sh
+  native-syntax:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: theos/headers
+          ref: 25ef5c99a31d600cf3a7b88922c1f7a4029c1417
+          path: .ci/headers
+      - uses: actions/checkout@v4
+        with:
+          repository: swisspol/GCDWebServer
+          ref: c6d118f4ecc1d9c2c6130fe8522b50889e78524b
+          path: .ci/webserver
+      - name: Check native sources for arm64 and arm64e
+        shell: bash
+        run: |
+          mkdir -p .ci/include/GCDWebServers
+          ln -s "$PWD/.ci/headers/IOKit" .ci/include/IOKit
+          find "$PWD/.ci/webserver" -name '*.h' -exec ln -sf '{}' .ci/include/GCDWebServers/ \;
+          for arch in arm64 arm64e; do
+            for source in ChargeLimiter/daemon.mm ChargeLimiter/ui.mm ChargeLimiter/utils.mm; do
+              xcrun --sdk iphoneos clang++ -target "$arch-apple-ios12.0" \
+                -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" \
+                -std=c++11 -fobjc-arc -fblocks -fsyntax-only \
+                -Wno-deprecated-declarations -I .ci/include \
+                -I .ci/include/GCDWebServers "$source"
+            done
+          done
