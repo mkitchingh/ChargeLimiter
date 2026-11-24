@@ -158,7 +158,6 @@ const App = {
             loading: false,
             daemon_alive: false,
             control: {},
-            control_busy: false,
             legacy_charge_hint: false,
             timer_freq: null,
             enable: false,
@@ -249,7 +248,6 @@ const App = {
             }
             ipc_send(req, status => {
                 if (!status) {
-                    that.control_busy = false;
                     that.errc += 1;
                     var max_hint = (that.update_freq <= 1) ? 10 : 1;
                     if (that.errc > max_hint) {
@@ -385,29 +383,26 @@ const App = {
             }
         },
         control_action_cb: function(jdata) {
-            this.control_busy = false;
             if (jdata.status !== 0) {
                 this.msg_list.push({id: get_id(), title: this.$t("control_action_failed") + " (" + jdata.status + ")", type: "error", time: 6000});
             }
             this.get_conf();
             this.get_bat_info();
         },
-        restore_charging: function() {
-            if (this.control_busy) return;
-            this.control_busy = true;
-            this.ipc_send_wrapper({api: "restore_charging", callback: "window.app.control_action_cb"});
-        },
         control_title: function() {
             if (!this.daemon_alive) return this.$t("control_service_unavailable");
+            if (!this.enable && ["disabled", "restored", "observe"].indexOf(this.control.reason) >= 0 && this.control.state !== "command_failed") {
+                return this.$t("control_state_disabled");
+            }
             return this.$t("control_state_" + (this.control.state || "observing"));
         },
         control_detail: function() {
             if (!this.daemon_alive) return this.$t("control_service_help");
-            return this.$t("control_reason_" + (this.control.reason || "observe"));
+            return this.$t("control_reason_" + (this.control.reason || "observe"), {limit: this.charge_above});
         },
         control_alert_type: function() {
             if (!this.daemon_alive || ["command_failed", "stop_unconfirmed", "invalid_reading"].indexOf(this.control.state) >= 0) return "error";
-            return this.enable ? "info" : "warning";
+            return "info";
         },
         set_inflow_status: function(v) {
             this.ipc_send_wrapper({api: "set_inflow_status", flag: v, callback: "window.app.control_action_cb"});
