@@ -11,6 +11,7 @@ on:
       - '.github/workflows/build-trollstore.yml'
 permissions:
   contents: read
+  checks: write
 concurrency:
   group: trollstore-package-${{ github.ref }}
   cancel-in-progress: true
@@ -60,3 +61,20 @@ jobs:
           path: build.log
           if-no-files-found: ignore
           retention-days: 14
+      - name: Publish package report or build diagnostics
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.existsSync('dist/build-report.json') ? fs.readFileSync('dist/build-report.json', 'utf8') : '';
+            const log = fs.existsSync('build.log') ? fs.readFileSync('build.log', 'utf8').slice(-45000) : 'Build did not reach compilation.';
+            await github.rest.checks.create({
+              ...context.repo, head_sha: context.sha,
+              name: 'TrollStore package report', status: 'completed',
+              conclusion: report ? 'success' : 'failure',
+              output: {
+                title: report ? 'Validated device package' : 'Package build diagnostics',
+                summary: '```' + (report ? 'json' : 'text') + '\n' + (report || log) + '\n```'
+              }
+            });
