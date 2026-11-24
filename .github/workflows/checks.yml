@@ -5,11 +5,15 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   policy-and-ui:
+    timeout-minutes: 10
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-24.04, macos-15]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -18,7 +22,8 @@ jobs:
           node-version: '22'
       - run: bash tests/run.sh
   native-syntax:
-    runs-on: macos-latest
+    timeout-minutes: 10
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
