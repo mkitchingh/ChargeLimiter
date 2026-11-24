@@ -234,6 +234,17 @@
       </div>
     </div>
     <div id="page_body" v-loading="loading">
+      <el-card class="box-card mx-3 my-2 px-2" shadow="never">
+        <el-alert :title="control_title()" :description="control_detail()" :type="control_alert_type()" :closable="false" show-icon></el-alert>
+        <div class="py-2">
+          <el-button size="small" type="primary" :loading="control_busy" :disabled="!daemon_alive" @click="restore_charging">{{$t("restore_charging")}}</el-button>
+          <div class="subtitle mt-2">{{$t("manual_pauses_automatic")}}</div>
+          <div class="mt-2" v-if="legacy_charge_hint && ['stop_unconfirmed', 'command_failed'].indexOf(control.state) >= 0">
+            <div class="subtitle">{{$t("legacy_charge_help")}}</div>
+            <el-button class="mt-2" size="small" @click="set_predictive_inhibit_charge(false)">{{$t("legacy_charge_action")}}</el-button>
+          </div>
+        </div>
+      </el-card>
       <el-row class="mx-4 px-1 pt-2">
         <span class="subtitle">{{$t("setting")}}</span>
         <span :class="['el-icon-'+(show_tips['setting']?'remove':'circle-plus'),'page-icon-sm','right']" @click="show_tips['setting']=!show_tips['setting']"></span>
