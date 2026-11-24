@@ -27,6 +27,7 @@ static BOOL isDarkMode() {
 
 @implementation AppDelegate {
     NSString* initUrl;
+    NSUInteger loadGeneration;
 }
 static UIView* _mainWnd = nil;
 static AppDelegate* _app = nil;
@@ -246,6 +247,7 @@ static AppDelegate* _app = nil;
     }
 }
 - (void)webViewDidFinishLoad:(UIWebView*)webview {
+    ++loadGeneration;
     [_mainWnd addSubview:webview];
     [_mainWnd bringSubviewToFront:webview];
     if (@available(iOS 17.0, *)) {
@@ -274,14 +276,19 @@ static AppDelegate* _app = nil;
     };
 }
 - (void)webView:(UIWebView*)webview didFailLoadWithError:(NSError*)error {
+    if (error.code == NSURLErrorCancelled) return;
+    NSUInteger generation = ++loadGeneration;
     NSString* surl = webview.request.URL.absoluteString;
-    [NSThread sleepForTimeInterval:0.5];
     if (surl.length == 0) { // 服务端未初始化时url会被置空
         surl = initUrl;
     }
     NSURL* url = [NSURL URLWithString:surl];
     NSURLRequest* req = [NSURLRequest requestWithURL:url cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:3.0];
-    [webview loadRequest:req];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        // An older failed request must not reload a page that has since loaded.
+        if (generation != loadGeneration || webview.loading) return;
+        [webview loadRequest:req];
+    });
 }
 - (BOOL)webView:(UIWebView *)webView shouldStartLoadWithRequest:(NSURLRequest*)request navigationType:(UIWebViewNavigationType)navigationType {
     NSString* url = request.URL.absoluteString;
