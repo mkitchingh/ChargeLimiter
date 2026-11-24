@@ -17,9 +17,11 @@ implementations. It does not install anything on a device automatically.
   command failures and continued charging after that window. A rise of two percentage points also invalidates a stopped reading, even if the current sensor reports zero. Notifications follow
   observed current rather than merely submitting a command.
 - Manual Charging and External Connected controls, including URL/Shortcuts commands, pause automatic limiting.
-  Restore normal charging pauses limiting, requests external input and clears
-  both charging-inhibit properties. The result is reported; hardware support is
-  still required. Enable limiting again explicitly when ready.
+  Turning Enable off requests external input, clears both charging-inhibit
+  properties, and restores Speedup Charging settings. The redundant recovery
+  button has been removed. The legacy `restore_charging` API remains as a
+  compatibility alias. The result is reported; hardware support is still required.
+  Enable limiting again explicitly when ready.
 - Speedup Charging snapshots settings once and restores the original values on
   stop, disconnect, disable, recovery, or normal daemon exit. Turning the feature
   off also restores settings. Abrupt process termination cannot run cleanup.
@@ -69,7 +71,7 @@ launches or controls a particular battery correctly; device tests remain pending
    Repeat while locked and with the interface closed. Ethernet/OpenBubbles
    should remain available with Speedup Charging off.
 2. Test manual input off/on above the upper threshold. Confirm automatic limiting
-   pauses and input stays restored. Test Restore normal charging after both
+   pauses and input stays restored. Test turning Enable off after both
    charging inhibition and input cutoff. Confirm percentage/current behavior,
    not only the toggle state.
 3. Test saved legacy and predictive methods on a newer iPhone and an iPad, plus
