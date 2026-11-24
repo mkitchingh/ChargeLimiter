@@ -96,6 +96,7 @@ static UPSDataSlim* gUPSPS = nil;
 static NSDictionary* control_bat_info = nil;
 static cl::State policy_state;
 static int charge_target = -1;
+static int target_capacity = -1;
 static int control_error = 0;
 static double target_since = 0;
 static double last_command = -1;
@@ -520,6 +521,7 @@ static NSString* reasonName(cl::Reason reason) {
 
 static void clearControl(NSString* reason) {
     charge_target = -1;
+    target_capacity = -1;
     control_error = 0;
     last_command = -1;
     control_reason = reason;
@@ -537,7 +539,10 @@ static void pauseAutomaticControl() {
 static NSDictionary* controlInfo() {
     NSString* state = @"observing";
     NSNumber* current = bat_info[@"InstantAmperage"];
-    BOOL stopped = cl::stopConfirmed(current != nil, current.longValue, [bat_info[@"IsCharging"] boolValue]);
+    NSNumber* capacity = bat_info[@"CurrentCapacity"];
+    BOOL rising = capacity != nil && cl::capacityRising(target_capacity, capacity.intValue);
+    BOOL stopped = (current != nil || bat_info[@"IsCharging"] != nil) &&
+        cl::stopConfirmed(current != nil, current.longValue, [bat_info[@"IsCharging"] boolValue], rising);
     if (control_error != 0) state = @"command_failed";
     else if (charge_target == 0) {
         if (stopped) state = current != nil ? @"paused" : @"pause_reported";
@@ -557,6 +562,7 @@ static void requestAutomaticCharge(int target, NSString* reason) {
     control_reason = reason;
     if (changed) {
         charge_target = target;
+        target_capacity = bat_info[@"CurrentCapacity"] ? [bat_info[@"CurrentCapacity"] intValue] : -1;
         target_since = now;
         last_command = -1;
         control_notified = NO;
@@ -568,7 +574,9 @@ static void requestAutomaticCharge(int target, NSString* reason) {
     if (!changed && control_error == 0) {
         BOOL inflowMatches = target == 0 && [getlocalKV(@"adv_disable_inflow") boolValue]
             ? ![bat_info[@"ExternalConnected"] boolValue] : YES;
-        if (target == 0 && inflowMatches && cl::stopConfirmed(current != nil, current.longValue, [bat_info[@"IsCharging"] boolValue])) return;
+        BOOL rising = bat_info[@"CurrentCapacity"] && cl::capacityRising(target_capacity, [bat_info[@"CurrentCapacity"] intValue]);
+        if (target == 0 && inflowMatches && (current != nil || bat_info[@"IsCharging"] != nil) &&
+            cl::stopConfirmed(current != nil, current.longValue, [bat_info[@"IsCharging"] boolValue], rising)) return;
         if (target == 1 && [bat_info[@"ExternalConnected"] boolValue] &&
             ([bat_info[@"IsCharging"] boolValue] || current.longValue > 10)) return;
     }
@@ -900,6 +908,7 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
         int status = setBatteryStatus(flag.boolValue);
         if (status == 0) status = inflowStatus;
         charge_target = flag.boolValue ? 1 : 0;
+        target_capacity = bat_info[@"CurrentCapacity"] ? [bat_info[@"CurrentCapacity"] intValue] : -1;
         target_since = NSProcessInfo.processInfo.systemUptime;
         control_error = status;
         return @{
