@@ -10,8 +10,8 @@ developed by [lich4](https://github.com/lich4/ChargeLimiter).
 > **Language note:** This project was originally written in Chinese. This fork is
 > maintained primarily in English. All Chinese-language updates in this fork are
 > best-effort updates made with AI tools; they may contain errors or lag behind
-> the English documentation. The original Chinese documentation is preserved at
-> the bottom of this page.
+> the English documentation. The Chinese section at the bottom of this page is
+> updated on that same best-effort basis.
 
 ## Development status
 
