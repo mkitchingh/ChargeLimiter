@@ -62,8 +62,11 @@ inline bool retryDue(double now, double last) { return last < 0 || now - last >=
 inline bool commandDue(double now, double last, int lastError) {
     return last < 0 || now - last >= (lastError == 0 ? 120 : 15);
 }
-inline bool stopConfirmed(bool hasCurrent, long current, bool charging) {
-    return hasCurrent ? current <= 10 : !charging;
+inline bool capacityRising(int baseline, int capacity) {
+    return validCapacity(baseline) && validCapacity(capacity) && capacity >= baseline + 2;
+}
+inline bool stopConfirmed(bool hasCurrent, long current, bool charging, bool rising = false) {
+    return !rising && (hasCurrent ? current <= 10 : !charging);
 }
 }
 #endif
