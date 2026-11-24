@@ -105,7 +105,9 @@ CL can be used together with a power bank. iDevice will be powered by the power 
 
 ### "Enable" button
 
-Enable or disable CL globally. CL will become an readonly observer if disabled, and shows battery information only.
+Turn **Enable** on to apply your automatic charge and temperature limits. Turn it off to disable those limits, restore external input power, permit normal charging, and restore settings changed by Speedup Charging. There is no separate recovery button.
+
+Manual charging and input-power switches pause automatic limiting so that the controller does not undo your changes. Turn Enable on again to resume automatic control.
 
 ### Floating window
 
